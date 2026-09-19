@@ -278,6 +278,7 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
       ? `${rawFinalUrl}&v=${timestamp}`
       : `${rawFinalUrl}?v=${timestamp}`;
     const d1 = getD1Binding(env);
+    const d1 = getD1Binding(env);
     return jsonResponse(
       {
         success: false,
