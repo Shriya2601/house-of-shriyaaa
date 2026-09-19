@@ -269,33 +269,4 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     if (r2PublicDomain) {
       rawFinalUrl = `${r2PublicDomain}/${key}`;
     } else {
-      const origin = new URL(request.url).origin;
-      rawFinalUrl = `${origin}/api/images/${key}`;
-    }
-
-    const finalUrl = rawFinalUrl.includes("?")
-      ? `${rawFinalUrl}&v=${timestamp}`
-      : `${rawFinalUrl}?v=${timestamp}`;
-    const d1 = getD1Binding(env);
-  export async function onRequest(context: { request: Request; env: Env }): Promise<Response> {
-  const method = context.request.method.toUpperCase();
-
-  if (method === "OPTIONS") {
-    return onRequestOptions(context);
-  }
-  if (method === "GET") {
-    return onRequestGet(context);
-  }
-  if (method === "POST") {
-    return onRequestPost(context);
-  }
-
-  return jsonResponse(
-    {
-      success: false,
-      error: `Method ${method} is not supported on /api/admin/upload. Please use POST to upload images.`,
-    },
-    405,
-    context.request
-  );
-}
+      const origin = new URL(request.url).origin; rawFinalUrl ${origin}/api/images/${key}; const finalUrl = rawFinalUrl.includes("?") ? ${rawFinalUrl}&v=${timestamp ${rawFinalUrl}?v=${timestamp}`;
