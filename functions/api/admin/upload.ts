@@ -277,8 +277,6 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     const finalUrl = rawFinalUrl.includes("?")
       ? `${rawFinalUrl}&v=${timestamp}`
       : `${rawFinalUrl}?v=${timestamp}`;
-
-    // 5. Store image record in Cloudflare D1 for durability and instant fallback
     
     return jsonResponse(
       {
