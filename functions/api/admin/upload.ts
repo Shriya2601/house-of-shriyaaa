@@ -278,19 +278,7 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
       ? `${rawFinalUrl}&v=${timestamp}`
       : `${rawFinalUrl}?v=${timestamp}`;
     const d1 = getD1Binding(env);
-    const d1 = getD1Binding(env);
-    return jsonResponse(
-      {
-        success: false,
-        error: err?.message || "Failed to process image upload on Cloudflare production server.",
-      },
-      500,
-      request
-    );
-  }
-}
-
-export async function onRequest(context: { request: Request; env: Env }): Promise<Response> {
+  export async function onRequest(context: { request: Request; env: Env }): Promise<Response> {
   const method = context.request.method.toUpperCase();
 
   if (method === "OPTIONS") {
