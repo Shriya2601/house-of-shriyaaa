@@ -94,7 +94,7 @@ export async function onRequestGet(context: { request: Request; env: Env }): Pro
   const { request, env } = context;
   const r2Bucket = getR2Bucket(env);
   const d1 = getD1Binding(env);
-
+  if (d1) { await ensureD1Tables(env); const now = new Date().toISOString(); const result = await executeD1Query( env, INSERT OR REPLACE INTO stored_images (key, data_url, mime_type, filename, size, slot, product_id, r2_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ); if (!result.success) { console.warn("[D1 stored_images warning]:", result.error ); } }
   return jsonResponse(
     {
       status: "online",
