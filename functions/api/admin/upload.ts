@@ -277,7 +277,7 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     const finalUrl = rawFinalUrl.includes("?")
       ? `${rawFinalUrl}&v=${timestamp}`
       : `${rawFinalUrl}?v=${timestamp}`;
-    
+    const d1 = getD1Binding(env);
     return jsonResponse(
       {
         success: false,
