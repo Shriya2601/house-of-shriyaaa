@@ -17,6 +17,17 @@ export interface ColRef {
   _path: string;
 }
 
+export interface DocumentChange {
+  type: "added" | "modified" | "removed";
+  doc: {
+    id: string;
+    exists: () => boolean;
+    data: () => any;
+  };
+  oldIndex: number;
+  newIndex: number;
+}
+
 export interface QuerySnapshot {
   docs: Array<{
     id: string;
@@ -26,6 +37,8 @@ export interface QuerySnapshot {
   empty: boolean;
   size: number;
   forEach: (cb: (doc: any) => void) => void;
+  docChanges: () => DocumentChange[];
+  metadata?: { hasPendingWrites: boolean; fromCache: boolean };
 }
 
 export interface DocumentSnapshot {
@@ -212,6 +225,14 @@ export async function getDocs(colRef: ColRef): Promise<QuerySnapshot> {
     empty: docs.length === 0,
     size: docs.length,
     forEach: (cb: (doc: any) => void) => docs.forEach(cb),
+    docChanges: () =>
+      docs.map((d, index) => ({
+        type: "added" as const,
+        doc: d,
+        oldIndex: -1,
+        newIndex: index,
+      })),
+    metadata: { hasPendingWrites: false, fromCache: false },
   };
 }
 

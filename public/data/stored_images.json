@@ -1,0 +1,62 @@
+{
+  "products_test-prod_test-1789857049376-88313_png": {
+    "key": "products/test-prod/test-1789857049376-88313.png",
+    "filename": "test-1789857049376-88313.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "test",
+    "productId": "test-prod",
+    "r2Url": null,
+    "updatedAt": "2026-09-19T22:30:49.377Z"
+  },
+  "test-1789857049376-88313_png": {
+    "key": "products/test-prod/test-1789857049376-88313.png",
+    "filename": "test-1789857049376-88313.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "test",
+    "productId": "test-prod",
+    "r2Url": null,
+    "updatedAt": "2026-09-19T22:30:49.377Z"
+  },
+  "test-1789857049376-88313": {
+    "key": "products/test-prod/test-1789857049376-88313.png",
+    "filename": "test-1789857049376-88313.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "test",
+    "productId": "test-prod",
+    "r2Url": null,
+    "updatedAt": "2026-09-19T22:30:49.377Z"
+  },
+  "uploads_test-1789857049376-88313_png": {
+    "key": "products/test-prod/test-1789857049376-88313.png",
+    "filename": "test-1789857049376-88313.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "test",
+    "productId": "test-prod",
+    "r2Url": null,
+    "updatedAt": "2026-09-19T22:30:49.377Z"
+  },
+  "uploads_test-1789857049376-88313_jpg": {
+    "key": "products/test-prod/test-1789857049376-88313.png",
+    "filename": "test-1789857049376-88313.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "test",
+    "productId": "test-prod",
+    "r2Url": null,
+    "updatedAt": "2026-09-19T22:30:49.377Z"
+  }
+}

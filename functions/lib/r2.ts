@@ -16,10 +16,14 @@ export function getR2Bucket(env: any): R2BucketLike | null {
   const candidates = [
     env.R2,
     env.BUCKET,
+    env.R2_BUCKET,
     env.IMAGES_BUCKET,
+    env.IMAGE_BUCKET,
     env.HOUSE_OF_SHRIYA_IMAGES,
     env.STORAGE,
     env.UPLOADS,
+    env.MY_BUCKET,
+    env.IMAGES,
   ];
   for (const b of candidates) {
     if (b && typeof b.get === "function" && typeof b.put === "function") {
@@ -33,7 +37,9 @@ export function getR2PublicBaseUrl(env: any): string {
   const customDomain =
     env?.R2_PUBLIC_DOMAIN ||
     env?.CLOUDFLARE_R2_PUBLIC_URL ||
+    env?.CLOUDFLARE_R2_PUBLIC_DOMAIN ||
     env?.PUBLIC_R2_URL ||
+    env?.R2_PUBLIC_URL ||
     "";
   if (customDomain) {
     return customDomain.replace(/\/+$/, "");

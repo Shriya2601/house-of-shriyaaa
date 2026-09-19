@@ -6,5 +6,5 @@ export {
   onRequestPost,
   onRequestGet,
   onRequestOptions,
-  onRequest,
+  onRequestDelete,
 } from "./admin/upload";

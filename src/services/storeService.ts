@@ -1637,11 +1637,20 @@ export function subscribeProducts(callback: (products: Product[]) => void): () =
         const deleted = getLocallyDeletedIds("products");
 
         // React to remote deletions in Firestore immediately
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === "removed") {
-            recordLocallyDeletedId("products", change.doc.id);
+        if (typeof (snapshot as any)?.docChanges === "function") {
+          try {
+            const changes = (snapshot as any).docChanges();
+            if (Array.isArray(changes)) {
+              changes.forEach((change: any) => {
+                if (change?.type === "removed" && change?.doc?.id) {
+                  recordLocallyDeletedId("products", change.doc.id);
+                }
+              });
+            }
+          } catch (e) {
+            console.warn("[Firestore products listener docChanges notice]:", e);
           }
-        });
+        }
 
         if (!snapshot.empty) {
           const fsList = snapshot.docs

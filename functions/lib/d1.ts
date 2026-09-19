@@ -20,7 +20,15 @@ export interface D1DatabaseLike {
 
 export function getD1Binding(env: any): D1DatabaseLike | null {
   if (!env) return null;
-  const db = env.DB || env.D1 || env.DATABASE || env.__D1_BETA__DB || env.STORE_DB;
+  const db =
+    env.DB ||
+    env.D1 ||
+    env.DATABASE ||
+    env.__D1_BETA__DB ||
+    env.STORE_DB ||
+    env.HOUSE_OF_SHRIYA_DB ||
+    env.PROD_DB ||
+    env.CLOUDFLARE_D1;
   if (db && typeof db.prepare === "function") {
     return db;
   }
