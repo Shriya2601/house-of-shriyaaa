@@ -58,5 +58,65 @@
     "productId": "test-prod",
     "r2Url": null,
     "updatedAt": "2026-09-19T22:30:49.377Z"
+  },
+  "banners_hero-slide-1789857972050-60281_png": {
+    "key": "banners/hero-slide-1789857972050-60281.png",
+    "filename": "hero-slide-1789857972050-60281.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "hero-slide-1",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-19T22:46:12.051Z"
+  },
+  "hero-slide-1789857972050-60281_png": {
+    "key": "banners/hero-slide-1789857972050-60281.png",
+    "filename": "hero-slide-1789857972050-60281.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "hero-slide-1",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-19T22:46:12.051Z"
+  },
+  "hero-slide-1789857972050-60281": {
+    "key": "banners/hero-slide-1789857972050-60281.png",
+    "filename": "hero-slide-1789857972050-60281.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "hero-slide-1",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-19T22:46:12.051Z"
+  },
+  "uploads_hero-slide-1789857972050-60281_png": {
+    "key": "banners/hero-slide-1789857972050-60281.png",
+    "filename": "hero-slide-1789857972050-60281.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "hero-slide-1",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-19T22:46:12.051Z"
+  },
+  "uploads_hero-slide-1789857972050-60281_jpg": {
+    "key": "banners/hero-slide-1789857972050-60281.png",
+    "filename": "hero-slide-1789857972050-60281.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "hero-slide-1",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-19T22:46:12.051Z"
   }
 }

@@ -43,8 +43,13 @@ export function normalizeImageUrl(url?: string | null, fallback = ""): string {
     return trimmed.replace("dl=0", "raw=1");
   }
 
-  // If this is an /uploads/ URL, resolve to cached high-res data URL if available
-  if (trimmed.startsWith("/uploads/")) {
+  // If this is an /uploads/ or /api/images/ URL, resolve to cached high-res data URL if available
+  if (
+    trimmed.startsWith("/uploads/") ||
+    trimmed.startsWith("/api/images/") ||
+    trimmed.startsWith("uploads/") ||
+    trimmed.startsWith("banners/")
+  ) {
     const cached = getLocalCachedImage(trimmed);
     if (cached) return cached;
   }

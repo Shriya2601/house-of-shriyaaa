@@ -12,24 +12,53 @@ export interface R2BucketLike {
 }
 
 export function getR2Bucket(env: any): R2BucketLike | null {
-  if (!env) return null;
+  if (!env || typeof env !== "object") return null;
+
+  // 1. Check known uppercase, lowercase, and common binding names
   const candidates = [
     env.R2,
+    env.r2,
     env.BUCKET,
+    env.bucket,
     env.R2_BUCKET,
+    env.r2_bucket,
     env.IMAGES_BUCKET,
     env.IMAGE_BUCKET,
+    env.images_bucket,
+    env.image_bucket,
     env.HOUSE_OF_SHRIYA_IMAGES,
     env.STORAGE,
+    env.storage,
     env.UPLOADS,
+    env.uploads,
     env.MY_BUCKET,
+    env.my_bucket,
     env.IMAGES,
+    env.images,
   ];
+
   for (const b of candidates) {
     if (b && typeof b.get === "function" && typeof b.put === "function") {
       return b;
     }
   }
+
+  // 2. Scan all object properties in env for any binding that satisfies R2Bucket interface
+  try {
+    for (const key of Object.keys(env)) {
+      const val = env[key];
+      if (
+        val &&
+        typeof val === "object" &&
+        typeof val.get === "function" &&
+        typeof val.put === "function" &&
+        typeof val.delete === "function"
+      ) {
+        return val;
+      }
+    }
+  } catch {}
+
   return null;
 }
 

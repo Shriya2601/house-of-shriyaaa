@@ -128,12 +128,14 @@ export async function onRequestGet(context: { request: Request; env: Env }): Pro
   const { request, env } = context;
   const r2Bucket = getR2Bucket(env);
   const d1 = getD1Binding(env);
+  const r2PublicDomain = getR2PublicBaseUrl(env);
   return jsonResponse(
     {
       status: "online",
       engine: "Cloudflare Pages Functions",
       r2Available: Boolean(r2Bucket),
       d1Available: Boolean(d1),
+      r2PublicDomain: r2PublicDomain || null,
       timestamp: new Date().toISOString(),
     },
     200,
@@ -357,8 +359,8 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     if (r2PublicDomain) {
       rawFinalUrl = `${r2PublicDomain}/${key}`;
     } else {
-      const origin = new URL(request.url).origin;
-      rawFinalUrl = `${origin}/api/images/${key}`;
+      // Root-relative path is universally accessible across all domains and ports
+      rawFinalUrl = `/api/images/${key}`;
     }
 
     const finalUrl = rawFinalUrl.includes("?")
@@ -475,26 +477,57 @@ export async function onRequestDelete(context: { request: Request; env: Env }): 
   }
 
   const url = new URL(request.url);
-  const key = url.searchParams.get("key") || url.searchParams.get("filename");
+  let rawKey = url.searchParams.get("key") || url.searchParams.get("filename") || url.searchParams.get("url") || "";
 
-  if (!key) {
+  if (!rawKey && request.headers.get("content-type")?.includes("application/json")) {
+    try {
+      const body = await request.json() as any;
+      rawKey = body?.key || body?.filename || body?.url || "";
+    } catch {}
+  }
+
+  if (!rawKey) {
     return jsonResponse({ success: false, error: "Image key or filename required" }, 400, request);
   }
+
+  // Normalize key: remove query params, origins, and standard prefixes
+  let cleanKey = decodeURIComponent(rawKey).split("?")[0].replace(/^https?:\/\/[^\/]+/, "").replace(/^\/+/, "");
+  if (cleanKey.startsWith("api/images/")) cleanKey = cleanKey.replace(/^api\/images\//, "");
+  const filename = cleanKey.split("/").pop() || cleanKey;
+  const nameWithoutExt = filename.replace(/\.[^/.]+$/, "");
 
   try {
     const r2Bucket = getR2Bucket(env);
     if (r2Bucket) {
-      await r2Bucket.delete(key).catch(() => {});
+      const candidates = [
+        cleanKey,
+        filename,
+        `uploads/${filename}`,
+        `banners/${filename}`,
+        `products/${filename}`,
+      ];
+      for (const k of candidates) {
+        await r2Bucket.delete(k).catch(() => {});
+      }
     }
 
     const db = getD1Binding(env);
+    const deleteParams = [cleanKey, filename, `%${nameWithoutExt}%`];
     if (db) {
-      await db.prepare("DELETE FROM stored_images WHERE key = ? OR filename = ?").bind(key, key).run();
+      await db
+        .prepare("DELETE FROM stored_images WHERE key = ? OR filename = ? OR key LIKE ?")
+        .bind(...deleteParams)
+        .run()
+        .catch(() => {});
     } else {
-      await executeD1Query(env, "DELETE FROM stored_images WHERE key = ? OR filename = ?", [key, key]);
+      await executeD1Query(
+        env,
+        "DELETE FROM stored_images WHERE key = ? OR filename = ? OR key LIKE ?",
+        deleteParams
+      ).catch(() => {});
     }
 
-    return jsonResponse({ success: true, purged: key }, 200, request);
+    return jsonResponse({ success: true, purged: filename }, 200, request);
   } catch (err: any) {
     return jsonResponse({ success: false, error: err?.message || String(err) }, 500, request);
   }

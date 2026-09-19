@@ -408,8 +408,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (contentRes && contentRes.ok) {
           const content = await contentRes.json();
           if (content && typeof content === "object") {
-            setSiteContent((prev) => ({ ...prev, ...content }));
-            cacheSiteContentLocally(content);
+            const cached = getCachedSiteContent();
+            const cachedTime = cached?.updatedAt ? new Date(cached.updatedAt).getTime() : 0;
+            const incomingTime = content.updatedAt ? new Date(content.updatedAt).getTime() : 0;
+
+            if (incomingTime >= cachedTime || !cachedTime) {
+              const merged: SiteContent = { ...cached, ...content };
+              if (
+                Array.isArray(cached?.heroSlides) &&
+                cached.heroSlides.length > 0 &&
+                (!Array.isArray(content.heroSlides) || content.heroSlides.length === 0)
+              ) {
+                merged.heroSlides = cached.heroSlides;
+              }
+              setSiteContent(merged);
+              cacheSiteContentLocally(merged);
+            }
           }
         }
         if (prodsRes && prodsRes.ok) {

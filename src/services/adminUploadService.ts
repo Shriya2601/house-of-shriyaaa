@@ -149,17 +149,91 @@ export function getAdminAuthToken(): string {
 /**
  * Builds upload endpoint URL with query parameters including master token and AI Studio token
  */
-function buildUploadUrl(path: string, options: { slot?: string; productId?: string } = {}): string {
+function buildUploadUrl(
+  path: string,
+  options: { slot?: string; productId?: string; key?: string; filename?: string } = {}
+): string {
   const token = encodeURIComponent(MASTER_ADMIN_TOKEN);
   let url = `${path}?token=${token}&adminToken=${token}&key=${token}`;
   if (options.slot) url += `&slot=${encodeURIComponent(options.slot)}`;
   if (options.productId) url += `&productId=${encodeURIComponent(options.productId)}`;
-  
+  if (options.key) url += `&imageKey=${encodeURIComponent(options.key)}`;
+  if (options.filename) url += `&filename=${encodeURIComponent(options.filename)}`;
+
   const aiToken = getAiStudioAuthToken();
   if (aiToken) {
     url += `&__aistudio_auth_token=${encodeURIComponent(aiToken)}`;
   }
   return url;
+}
+
+/**
+ * Deletes an uploaded image permanently from Cloudflare R2, D1, server disk, and client caches.
+ */
+export async function deleteImageFromStorage(imageUrlOrKey: string): Promise<boolean> {
+  if (!imageUrlOrKey || typeof imageUrlOrKey !== "string") return true;
+
+  // Stock un-removable URLs or external links
+  if (
+    imageUrlOrKey.includes("images.unsplash.com") ||
+    imageUrlOrKey.includes("komododecks.com") ||
+    imageUrlOrKey.includes("drive.google.com") ||
+    imageUrlOrKey.includes("dropbox.com")
+  ) {
+    return true;
+  }
+
+  const clean = imageUrlOrKey.split("?")[0].replace(/^https?:\/\/[^\/]+/, "").replace(/^\/+/, "");
+  const normalizedKey = clean.startsWith("api/images/") ? clean.replace(/^api\/images\//, "") : clean;
+  const filename = normalizedKey.split("/").pop() || normalizedKey;
+
+  // 1. Purge client memory & browser cache
+  localImageMemoryCache.delete(clean);
+  localImageMemoryCache.delete(normalizedKey);
+  localImageMemoryCache.delete(filename);
+  localImageMemoryCache.delete(imageUrlOrKey);
+
+  try {
+    sessionStorage.removeItem(`hos_img_${clean}`);
+    sessionStorage.removeItem(`hos_img_${normalizedKey}`);
+    localStorage.removeItem(`hos_img_${clean}`);
+    localStorage.removeItem(`hos_img_${normalizedKey}`);
+    if (filename) {
+      sessionStorage.removeItem(`hos_img_${filename}`);
+      localStorage.removeItem(`hos_img_${filename}`);
+    }
+  } catch {}
+
+  // 2. Call backend delete endpoints
+  const token = getAiStudioAuthToken();
+  const authHeaders: Record<string, string> = {
+    "x-admin-token": MASTER_ADMIN_TOKEN,
+    authorization: `Bearer ${token || MASTER_ADMIN_TOKEN}`,
+    "x-admin-key": MASTER_ADMIN_TOKEN,
+  };
+
+  const endpoints = [
+    buildUploadUrl("/api/admin/upload", { key: normalizedKey, filename }),
+    buildUploadUrl("/api/upload", { key: normalizedKey, filename }),
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(ep, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify({ key: normalizedKey, filename, url: imageUrlOrKey }),
+      });
+      if (res.ok) {
+        return true;
+      }
+    } catch {}
+  }
+
+  return false;
 }
 
 /**
@@ -460,7 +534,10 @@ export async function uploadImageToAdminStorage(
         if (result.success && result.url) {
           tracker.logApiResult(uploadEndpoint, response.status, contentType, result);
           onProgress?.(100);
-          const base = result.url.split("?")[0];
+          let base = result.url.split("?")[0];
+          if (typeof window !== "undefined" && base.startsWith(window.location.origin)) {
+            base = base.replace(window.location.origin, "");
+          }
           const finalUrl = `${base}?v=${Date.now()}`;
           registerLocalImageCache(finalUrl, optimizedDataUrl);
           registerLocalImageCache(base, optimizedDataUrl);
@@ -535,7 +612,10 @@ export async function uploadImageToAdminStorage(
       if (result.success && result.url) {
         tracker.logApiResult(uploadEndpoint, formResponse.status, contentType, result);
         onProgress?.(100);
-        const base = result.url.split("?")[0];
+        let base = result.url.split("?")[0];
+        if (typeof window !== "undefined" && base.startsWith(window.location.origin)) {
+          base = base.replace(window.location.origin, "");
+        }
         const finalUrl = `${base}?v=${Date.now()}`;
         if (optimizedDataUrl) {
           registerLocalImageCache(finalUrl, optimizedDataUrl);
@@ -573,8 +653,8 @@ export async function uploadImageToAdminStorage(
       tracker.logCacheRegistration([persistentUrl, `/uploads/${targetFilename}`, targetFilename, finalDataUrl]);
 
       onProgress?.(100);
-      tracker.logComplete(finalDataUrl, "LOCAL_CACHE_FALLBACK");
-      return finalDataUrl;
+      tracker.logComplete(persistentUrl, "LOCAL_CACHE_FALLBACK");
+      return persistentUrl;
     }
 
     onProgress?.(100);

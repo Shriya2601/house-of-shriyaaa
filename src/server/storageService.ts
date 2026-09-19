@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 // In-memory binary cache for instant zero-latency serving
 const memoryBinaryCache = new Map<string, { buffer: Buffer; mimeType: string; timestamp: number }>();
@@ -412,3 +412,82 @@ export async function retrieveImage(
 
   return null;
 }
+
+/**
+ * Permanently deletes an image from RAM, local filesystem disks, Cloudflare R2, and stored image records.
+ */
+export async function deleteImagePermanently(
+  keyOrFilename: string
+): Promise<{ success: boolean; purged: string }> {
+  if (!keyOrFilename) return { success: true, purged: "" };
+
+  const clean = keyOrFilename.split("?")[0].replace(/^https?:\/\/[^\/]+/, "").replace(/^\/+/, "");
+  const normalizedKey = clean.startsWith("api/images/") ? clean.replace(/^api\/images\//, "") : clean;
+  const filename = path.basename(normalizedKey);
+  const nameWithoutExt = filename.replace(/\.[a-zA-Z0-9]+$/, "");
+
+  // 1. In-memory cache purge
+  memoryBinaryCache.delete(clean);
+  memoryBinaryCache.delete(normalizedKey);
+  memoryBinaryCache.delete(filename);
+
+  // 2. Filesystem purge across all public & build output upload targets
+  const diskCandidates = [
+    path.resolve(process.cwd(), "public/uploads", normalizedKey),
+    path.resolve(process.cwd(), "public/uploads", filename),
+    path.resolve(process.cwd(), "public/uploads/banners", filename),
+    path.resolve(process.cwd(), "public/uploads/products", filename),
+    path.resolve(process.cwd(), "dist/uploads", normalizedKey),
+    path.resolve(process.cwd(), "dist/uploads", filename),
+    path.resolve(process.cwd(), "dist/uploads/banners", filename),
+    path.resolve(process.cwd(), "dist/uploads/products", filename),
+  ];
+
+  for (const diskPath of diskCandidates) {
+    if (fs.existsSync(diskPath) && !diskPath.endsWith(".gitkeep")) {
+      try {
+        fs.unlinkSync(diskPath);
+      } catch {}
+    }
+  }
+
+  // 3. Cloudflare R2 purge
+  const { client: r2, bucket } = getR2Client();
+  if (r2) {
+    const keysToDelete = [
+      normalizedKey,
+      filename,
+      `banners/${filename}`,
+      `uploads/${filename}`,
+      `products/${filename}`,
+    ];
+    for (const k of keysToDelete) {
+      try {
+        await r2.send(new DeleteObjectCommand({ Bucket: bucket, Key: k }));
+      } catch {}
+    }
+  }
+
+  // 4. Stored image records cleanup
+  try {
+    const storedMap = readStoredImagesMap();
+    let modified = false;
+    for (const k of Object.keys(storedMap)) {
+      if (
+        k === clean ||
+        k === normalizedKey ||
+        k === filename ||
+        k.includes(nameWithoutExt)
+      ) {
+        delete storedMap[k];
+        modified = true;
+      }
+    }
+    if (modified) {
+      fs.writeFileSync(STORED_IMAGES_FILE, JSON.stringify(storedMap, null, 2), "utf-8");
+    }
+  } catch {}
+
+  return { success: true, purged: filename };
+}
+

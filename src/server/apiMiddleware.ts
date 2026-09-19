@@ -1,7 +1,7 @@
 import type { Connect, Plugin } from "vite";
 import fs from "fs";
 import path from "path";
-import { persistImagePermanently, retrieveImage, isAuthorizedAdminRequest } from "./storageService";
+import { persistImagePermanently, retrieveImage, isAuthorizedAdminRequest, deleteImagePermanently } from "./storageService";
 import { parseUploadPayload } from "./uploadParser";
 
 // In-memory cache for ultra-fast instant rendering of uploaded photos with timestamp tracking
@@ -1239,15 +1239,7 @@ export const apiHandler: Connect.NextHandleFunction = async (req, res, next) => 
 
               if (filenameToDelete && !filenameToDelete.includes("..") && filenameToDelete !== ".gitkeep") {
                 memoryUploadsCache.delete(filenameToDelete);
-                const pathsToDel = [
-                  path.resolve(process.cwd(), "public/uploads", filenameToDelete),
-                  path.resolve(process.cwd(), "dist/uploads", filenameToDelete),
-                ];
-                for (const p of pathsToDel) {
-                  if (fs.existsSync(p)) {
-                    try { fs.unlinkSync(p); } catch {}
-                  }
-                }
+                await deleteImagePermanently(filenameToDelete);
               }
 
               res.setHeader("Content-Type", "application/json");

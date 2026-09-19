@@ -21,7 +21,7 @@ import {
   updateProfile,
 } from "./cloudflareBridge";
 import { AuthUser as User } from "../types";
-import { uploadImageToAdminStorage, getAdminAuthToken } from "./adminUploadService";
+import { uploadImageToAdminStorage, getAdminAuthToken, deleteImageFromStorage } from "./adminUploadService";
 import {
   Product,
   ColorVariant,
@@ -995,94 +995,141 @@ export function subscribeSiteContent(callback: (content: SiteContent) => void): 
   };
 }
 
-export async function saveSiteContent(content: Partial<SiteContent>): Promise<SiteContent> {
-  const existing = getCachedSiteContent();
-  const sanitizedContent = sanitizeSiteContent({ ...content });
-  const timestamp = new Date().toISOString();
-  const updated: SiteContent = {
-    ...defaultSiteContent,
-    ...existing,
-    ...sanitizedContent,
-    updatedAt: timestamp,
-  };
+let isSavingSiteContent = false;
+let pendingSiteContentSaves: Partial<SiteContent>[] = [];
 
-  if (Array.isArray(sanitizedContent.heroSlides)) {
-    const uploadedSlides = await Promise.all(
-      sanitizedContent.heroSlides.map(async (slide, idx) => {
-        if (slide.image && (slide.image.startsWith("data:") || slide.image.startsWith("blob:"))) {
-          try {
-            const permUrl = await uploadImageToAdminStorage(slide.image, {
-              slot: `hero-slide-${idx + 1}`,
-            });
-            return { ...slide, image: permUrl };
-          } catch (e) {
-            console.error(`[saveSiteContent] Slide ${idx + 1} upload failed:`, e);
+export async function saveSiteContent(content: Partial<SiteContent>): Promise<SiteContent> {
+  if (isSavingSiteContent) {
+    pendingSiteContentSaves.push(content);
+    // Return optimistic state immediately while queued
+    const existing = getCachedSiteContent();
+    return { ...defaultSiteContent, ...existing, ...content, updatedAt: new Date().toISOString() };
+  }
+
+  isSavingSiteContent = true;
+
+  try {
+    const existing = getCachedSiteContent();
+    const sanitizedContent = sanitizeSiteContent({ ...content });
+    const timestamp = new Date().toISOString();
+    const updated: SiteContent = {
+      ...defaultSiteContent,
+      ...existing,
+      ...sanitizedContent,
+      updatedAt: timestamp,
+    };
+
+    if (Array.isArray(sanitizedContent.heroSlides)) {
+      const uploadedSlides = await Promise.all(
+        sanitizedContent.heroSlides.map(async (slide, idx) => {
+          if (slide.image && (slide.image.startsWith("data:") || slide.image.startsWith("blob:"))) {
+            try {
+              const permUrl = await uploadImageToAdminStorage(slide.image, {
+                slot: `hero-slide-${idx + 1}`,
+              });
+              return { ...slide, image: permUrl };
+            } catch (e) {
+              console.error(`[saveSiteContent] Slide ${idx + 1} upload failed:`, e);
+            }
+          }
+          return slide;
+        })
+      );
+      updated.heroSlides = uploadedSlides;
+
+      // Clean up any replaced slide images that are no longer referenced
+      if (Array.isArray(existing.heroSlides)) {
+        for (const oldSlide of existing.heroSlides) {
+          if (
+            oldSlide?.image &&
+            (oldSlide.image.startsWith("/uploads/") || oldSlide.image.startsWith("/api/images/"))
+          ) {
+            const isStillReferenced = updated.heroSlides.some((s) => s.image === oldSlide.image);
+            if (!isStillReferenced) {
+              deleteImageFromStorage(oldSlide.image).catch(() => {});
+            }
           }
         }
-        return slide;
-      })
-    );
-    updated.heroSlides = uploadedSlides;
-  }
-  if (Array.isArray(sanitizedContent.features)) {
-    updated.features = sanitizedContent.features;
-  }
-  if (Array.isArray(sanitizedContent.trustBadges)) {
-    updated.trustBadges = sanitizedContent.trustBadges;
-  }
-
-  // 1. Immediately cache locally and clear any stale overrides for updated fields
-  cacheSiteContentLocally(updated);
-  try {
-    const rawOverrides = localStorage.getItem("hos_custom_overrides");
-    if (rawOverrides) {
-      const overrides = JSON.parse(rawOverrides);
-      let changed = false;
-      for (const k of Object.keys(overrides)) {
-        if (k.startsWith("hero_slide_") || k.startsWith("announcement_bar_") || k.includes("hero")) {
-          delete overrides[k];
-          changed = true;
-        }
-      }
-      if (changed) {
-        localStorage.setItem("hos_custom_overrides", JSON.stringify(overrides));
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("hos-custom-overrides-updated", { detail: overrides }));
-        }
       }
     }
-  } catch {}
-
-  // 2. Dispatch events synchronously for 0ms reactive UI refresh
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("hos-content-updated", { detail: updated }));
-  }
-  broadcastCrossDeviceSync("site_content" as any, updated);
-
-  // 3. Sync to API backend for disk persistence
-  try {
-    const res = await fetch("/api/site-content", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updated),
-    });
-    if (!res.ok) {
-      console.warn(`[StoreService] Server API returned HTTP ${res.status} for site content; continuing to Firestore.`);
+    if (Array.isArray(sanitizedContent.features)) {
+      updated.features = sanitizedContent.features;
     }
-  } catch (apiErr: any) {
-    console.warn("[StoreService] API site content sync note:", apiErr?.message || apiErr);
-  }
+    if (Array.isArray(sanitizedContent.trustBadges)) {
+      updated.trustBadges = sanitizedContent.trustBadges;
+    }
 
-  // 4. Sync to Firestore (single source of truth across all devices)
-  try {
-    await ensureAdminFirebaseAuth().catch(() => null);
-    const docRef = doc(db, "site_content", SITE_CONTENT_DOC);
-    await setDoc(docRef, sanitizeForFirestore(updated), { merge: true });
-  } catch (fsErr: any) {
-    console.warn(`[StoreService] Firestore site content sync notice for site_content/${SITE_CONTENT_DOC}:`, fsErr?.message || fsErr);
-  }
+    // 1. Immediately cache locally and clear any stale overrides for updated fields
+    cacheSiteContentLocally(updated);
+    try {
+      const rawOverrides = localStorage.getItem("hos_custom_overrides");
+      if (rawOverrides) {
+        const overrides = JSON.parse(rawOverrides);
+        let changed = false;
+        for (const k of Object.keys(overrides)) {
+          if (k.startsWith("hero_slide_") || k.startsWith("announcement_bar_") || k.includes("hero")) {
+            delete overrides[k];
+            changed = true;
+          }
+        }
+        if (changed) {
+          localStorage.setItem("hos_custom_overrides", JSON.stringify(overrides));
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("hos-custom-overrides-updated", { detail: overrides }));
+          }
+        }
+      }
+    } catch {}
 
-  return updated;
+    // 2. Dispatch events synchronously for 0ms reactive UI refresh
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("hos-content-updated", { detail: updated }));
+    }
+    broadcastCrossDeviceSync("site_content" as any, updated);
+
+    // 3. Sync to API backend for disk persistence with admin token
+    const adminToken = getAdminAuthToken();
+    try {
+      const res = await fetch("/api/site-content", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": adminToken,
+          "x-admin-key": adminToken,
+          authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify(updated),
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        if (json?.content && typeof json.content === "object") {
+          Object.assign(updated, json.content);
+          cacheSiteContentLocally(updated);
+        }
+      }
+    } catch (apiErr: any) {
+      console.warn("[StoreService] API site content sync note:", apiErr?.message || apiErr);
+    }
+
+    // 4. Sync to Firestore (if available)
+    try {
+      await ensureAdminFirebaseAuth().catch(() => null);
+      const docRef = doc(db, "site_content", SITE_CONTENT_DOC);
+      await setDoc(docRef, sanitizeForFirestore(updated), { merge: true });
+    } catch (fsErr: any) {
+      console.warn(`[StoreService] Firestore site content sync notice:`, fsErr?.message || fsErr);
+    }
+
+    return updated;
+  } finally {
+    isSavingSiteContent = false;
+    if (pendingSiteContentSaves.length > 0) {
+      const nextBatch = pendingSiteContentSaves.shift();
+      if (nextBatch) {
+        saveSiteContent(nextBatch).catch(() => {});
+      }
+    }
+  }
 }
 
 export function subscribeCategories(callback: (categories: CategoryItem[]) => void): () => void {
@@ -2133,6 +2180,31 @@ export async function deleteProduct(id: string): Promise<void> {
     await deleteDoc(docRef);
   } catch (fsErr) {
     console.warn("Firestore deleteDoc notice:", fsErr);
+  }
+
+  // 5. Clean up associated media files from storage/R2
+  if (target) {
+    const imagesToClean: string[] = [];
+    if (target.image) imagesToClean.push(target.image);
+    if (target.hoverImage) imagesToClean.push(target.hoverImage);
+    if (Array.isArray(target.images)) imagesToClean.push(...target.images);
+    if (Array.isArray(target.colorVariants)) {
+      target.colorVariants.forEach((v) => {
+        if (v?.image) imagesToClean.push(v.image);
+        if (v?.hoverImage) imagesToClean.push(v.hoverImage);
+      });
+    }
+    for (const imgUrl of imagesToClean) {
+      if (
+        imgUrl &&
+        (imgUrl.startsWith("/uploads/") ||
+          imgUrl.startsWith("/api/images/") ||
+          imgUrl.startsWith("uploads/") ||
+          imgUrl.startsWith("banners/"))
+      ) {
+        deleteImageFromStorage(imgUrl).catch(() => {});
+      }
+    }
   }
 }
 

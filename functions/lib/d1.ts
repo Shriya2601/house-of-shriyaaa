@@ -19,19 +19,42 @@ export interface D1DatabaseLike {
 }
 
 export function getD1Binding(env: any): D1DatabaseLike | null {
-  if (!env) return null;
-  const db =
-    env.DB ||
-    env.D1 ||
-    env.DATABASE ||
-    env.__D1_BETA__DB ||
-    env.STORE_DB ||
-    env.HOUSE_OF_SHRIYA_DB ||
-    env.PROD_DB ||
-    env.CLOUDFLARE_D1;
-  if (db && typeof db.prepare === "function") {
-    return db;
+  if (!env || typeof env !== "object") return null;
+
+  // 1. Check known uppercase, lowercase, and common binding names
+  const candidates = [
+    env.DB,
+    env.db,
+    env.D1,
+    env.d1,
+    env.DATABASE,
+    env.database,
+    env.__D1_BETA__DB,
+    env.STORE_DB,
+    env.store_db,
+    env.HOUSE_OF_SHRIYA_DB,
+    env.PROD_DB,
+    env.prod_db,
+    env.CLOUDFLARE_D1,
+    env.cloudflare_d1,
+  ];
+
+  for (const db of candidates) {
+    if (db && typeof db.prepare === "function") {
+      return db;
+    }
   }
+
+  // 2. Scan all properties in env for any binding that has a prepare method
+  try {
+    for (const key of Object.keys(env)) {
+      const val = env[key];
+      if (val && typeof val === "object" && typeof val.prepare === "function") {
+        return val;
+      }
+    }
+  } catch {}
+
   return null;
 }
 
