@@ -826,5 +826,53 @@
     "productId": "hos-test-1",
     "r2Url": null,
     "updatedAt": "2026-09-20T17:19:59.367Z"
+  },
+  "products_test-prod-1_main-1789926417470-29507_jpg": {
+    "key": "products/test-prod-1/main-1789926417470-29507.jpg",
+    "filename": "main-1789926417470-29507.jpg",
+    "mimeType": "image/jpeg",
+    "size": 134,
+    "dataBase64": "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "slot": "main",
+    "productId": "test-prod-1",
+    "r2Url": null,
+    "updatedAt": "2026-09-20T17:46:57.472Z"
+  },
+  "main-1789926417470-29507_jpg": {
+    "key": "products/test-prod-1/main-1789926417470-29507.jpg",
+    "filename": "main-1789926417470-29507.jpg",
+    "mimeType": "image/jpeg",
+    "size": 134,
+    "dataBase64": "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "slot": "main",
+    "productId": "test-prod-1",
+    "r2Url": null,
+    "updatedAt": "2026-09-20T17:46:57.472Z"
+  },
+  "main-1789926417470-29507": {
+    "key": "products/test-prod-1/main-1789926417470-29507.jpg",
+    "filename": "main-1789926417470-29507.jpg",
+    "mimeType": "image/jpeg",
+    "size": 134,
+    "dataBase64": "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "slot": "main",
+    "productId": "test-prod-1",
+    "r2Url": null,
+    "updatedAt": "2026-09-20T17:46:57.472Z"
+  },
+  "uploads_main-1789926417470-29507_jpg": {
+    "key": "products/test-prod-1/main-1789926417470-29507.jpg",
+    "filename": "main-1789926417470-29507.jpg",
+    "mimeType": "image/jpeg",
+    "size": 134,
+    "dataBase64": "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "slot": "main",
+    "productId": "test-prod-1",
+    "r2Url": null,
+    "updatedAt": "2026-09-20T17:46:57.472Z"
   }
 }
