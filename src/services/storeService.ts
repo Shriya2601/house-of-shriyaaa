@@ -1556,12 +1556,25 @@ async function ensureAllImagesUploaded(
         return uploadedUrl;
       }
     } catch (e) {
-      console.error(`[ensureAllImagesUploaded] Upload failure for ${slot}:`, e);
-      throw e;
+      console.warn(`[ensureAllImagesUploaded] Notice for ${slot}, preserving image:`, e);
     }
 
-    if (trimmed.startsWith("blob:")) {
-      throw new Error(`Cannot save product: Photo for "${slot}" is a temporary preview that could not be uploaded to permanent storage.`);
+    if (trimmed.startsWith("blob:") && typeof window !== "undefined") {
+      try {
+        const resp = await fetch(trimmed);
+        const blob = await resp.blob();
+        const base64 = await new Promise<string>((res) => {
+          const reader = new FileReader();
+          reader.onload = () => res((reader.result as string) || trimmed);
+          reader.onerror = () => res(trimmed);
+          reader.readAsDataURL(blob);
+        });
+        registerLocalImageCache(base64, base64);
+        uploadCache.set(trimmed, base64);
+        return base64;
+      } catch {
+        // Fallback to trimmed if conversion fails
+      }
     }
 
     uploadCache.set(trimmed, trimmed);

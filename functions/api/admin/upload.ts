@@ -545,3 +545,12 @@ export async function onRequestDelete(context: { request: Request; env: Env }): 
     return jsonResponse({ success: false, error: err?.message || String(err) }, 500, request);
   }
 }
+
+export async function onRequest(context: { request: Request; env: Env }): Promise<Response> {
+  const method = context.request.method.toUpperCase();
+  if (method === "OPTIONS") return onRequestOptions(context);
+  if (method === "GET" || method === "HEAD") return onRequestGet(context);
+  if (method === "POST" || method === "PUT" || method === "PATCH") return onRequestPost(context);
+  if (method === "DELETE") return onRequestDelete(context);
+  return new Response("Method not allowed", { status: 405 });
+}

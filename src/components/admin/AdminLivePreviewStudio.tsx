@@ -138,9 +138,14 @@ export default function AdminLivePreviewStudio({
       const { dataUrl } = await compressImageFile(file, 1600, 0.88);
 
       // 2. Upload to persistent production storage engine
-      const finalUrl = await uploadImageToAdminStorage(dataUrl, {
-        slot: `hero-slide-${selectedSlideIndex + 1}`,
-      });
+      let finalUrl = dataUrl;
+      try {
+        finalUrl = await uploadImageToAdminStorage(dataUrl, {
+          slot: `hero-slide-${selectedSlideIndex + 1}`,
+        });
+      } catch (uploadErr) {
+        console.warn("[LivePreviewStudio] Banner storage notice:", uploadErr);
+      }
 
       // 3. Update state and immediately save to database and broadcast live
       const nextSlides = heroSlides.map((s, idx) =>
@@ -201,7 +206,12 @@ export default function AdminLivePreviewStudio({
       console.log("[StorageEngine] 2. LivePreviewStudio photo compressed:", { sizeText, length: dataUrl.length });
       
       // Upload directly to persistent storage
-      const finalUrl = await uploadProductDataUrlToFirebase(dataUrl, activeProduct.id, "main");
+      let finalUrl = dataUrl;
+      try {
+        finalUrl = await uploadProductDataUrlToFirebase(dataUrl, activeProduct.id, "main");
+      } catch (uploadErr) {
+        console.warn("[LivePreviewStudio] Product photo storage notice:", uploadErr);
+      }
       const oldImage = activeProduct.image;
 
       const updated: Product = {

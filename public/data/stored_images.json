@@ -598,5 +598,65 @@
     "productId": "hos-test-product-99",
     "r2Url": null,
     "updatedAt": "2026-09-20T16:02:02.353Z"
+  },
+  "products_hos-test-prod-100_main-1789921518972-7826_gif": {
+    "key": "products/hos-test-prod-100/main-1789921518972-7826.gif",
+    "filename": "main-1789921518972-7826.gif",
+    "mimeType": "image/gif",
+    "size": 42,
+    "dataBase64": "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    "dataUrl": "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    "slot": "main",
+    "productId": "hos-test-prod-100",
+    "r2Url": null,
+    "updatedAt": "2026-09-20T16:25:18.974Z"
+  },
+  "main-1789921518972-7826_gif": {
+    "key": "products/hos-test-prod-100/main-1789921518972-7826.gif",
+    "filename": "main-1789921518972-7826.gif",
+    "mimeType": "image/gif",
+    "size": 42,
+    "dataBase64": "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    "dataUrl": "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    "slot": "main",
+    "productId": "hos-test-prod-100",
+    "r2Url": null,
+    "updatedAt": "2026-09-20T16:25:18.974Z"
+  },
+  "main-1789921518972-7826": {
+    "key": "products/hos-test-prod-100/main-1789921518972-7826.gif",
+    "filename": "main-1789921518972-7826.gif",
+    "mimeType": "image/gif",
+    "size": 42,
+    "dataBase64": "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    "dataUrl": "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    "slot": "main",
+    "productId": "hos-test-prod-100",
+    "r2Url": null,
+    "updatedAt": "2026-09-20T16:25:18.974Z"
+  },
+  "uploads_main-1789921518972-7826_gif": {
+    "key": "products/hos-test-prod-100/main-1789921518972-7826.gif",
+    "filename": "main-1789921518972-7826.gif",
+    "mimeType": "image/gif",
+    "size": 42,
+    "dataBase64": "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    "dataUrl": "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    "slot": "main",
+    "productId": "hos-test-prod-100",
+    "r2Url": null,
+    "updatedAt": "2026-09-20T16:25:18.974Z"
+  },
+  "uploads_main-1789921518972-7826_jpg": {
+    "key": "products/hos-test-prod-100/main-1789921518972-7826.gif",
+    "filename": "main-1789921518972-7826.gif",
+    "mimeType": "image/gif",
+    "size": 42,
+    "dataBase64": "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    "dataUrl": "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    "slot": "main",
+    "productId": "hos-test-prod-100",
+    "r2Url": null,
+    "updatedAt": "2026-09-20T16:25:18.974Z"
   }
 }

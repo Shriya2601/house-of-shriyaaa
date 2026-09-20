@@ -206,3 +206,10 @@ export async function onRequestHead(context: any): Promise<Response> {
     headers: getRes.headers,
   });
 }
+
+export async function onRequest(context: any): Promise<Response> {
+  const method = context.request?.method?.toUpperCase() || "GET";
+  if (method === "OPTIONS") return onRequestOptions();
+  if (method === "HEAD") return onRequestHead(context);
+  return onRequestGet(context);
+}
