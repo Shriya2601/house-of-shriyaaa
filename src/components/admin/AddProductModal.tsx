@@ -131,6 +131,7 @@ export default function AddProductModal({
   const extraFileInputRef = useRef<HTMLInputElement>(null);
   const lastMainFileRef = useRef<File | null>(null);
   const lastHoverFileRef = useRef<File | null>(null);
+  const lastInitKeyRef = useRef<string | null>(null);
 
   const [inStock, setInStock] = useState(true);
   const [selectedBadge, setSelectedBadge] = useState("New Drop");
@@ -146,6 +147,18 @@ export default function AddProductModal({
   };
 
   useEffect(() => {
+    if (!isOpen) {
+      lastInitKeyRef.current = null;
+      return;
+    }
+
+    const currentKey = productToEdit ? `edit_${productToEdit.id}` : "create_new";
+    if (lastInitKeyRef.current === currentKey) {
+      // Form is already active for this product session; do NOT wipe user edits or photos
+      return;
+    }
+    lastInitKeyRef.current = currentKey;
+
     if (productToEdit) {
       setName(productToEdit.name || "");
       setCategory(
@@ -204,7 +217,7 @@ export default function AddProductModal({
       setSelectedBadge("New Drop");
     }
     setError(null);
-  }, [productToEdit, isOpen, categoryList]);
+  }, [productToEdit?.id, isOpen]);
 
   if (!isOpen) return null;
 
@@ -728,30 +741,20 @@ export default function AddProductModal({
                     </div>
                   )}
 
-                  {mainUploadState === "uploading" ? (
-                    <div className="p-5 border-2 border-dashed border-amber-300 bg-amber-50/50 rounded-xl text-center">
-                      <div className="py-2 flex flex-col items-center gap-2 text-stone-700">
-                        <RefreshCw size={22} className="animate-spin text-[#0d4f3c]" />
-                        <p className="text-xs font-bold text-stone-900">
-                          Uploading & Securing Photo ({mainUploadProgress}%)
-                        </p>
-                        <div className="w-48 h-1.5 bg-stone-200 rounded-full overflow-hidden mt-1">
-                          <div
-                            className="h-full bg-[#0d4f3c] transition-all duration-150"
-                            style={{ width: `${mainUploadProgress}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ) : image ? (
+                  {image ? (
                     <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-stone-200 shadow-2xs">
-                      <div className="w-16 h-20 rounded-lg overflow-hidden border border-stone-200 bg-stone-100 shrink-0">
+                      <div className="relative w-16 h-20 rounded-lg overflow-hidden border border-stone-200 bg-stone-100 shrink-0">
                         <img
                           src={normalizeImageUrl(image)}
                           alt="Main Suit"
                           className="w-full h-full object-cover"
                           onError={handleImageError}
                         />
+                        {mainUploadState === "uploading" && (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <RefreshCw size={16} className="animate-spin text-white" />
+                          </div>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -762,24 +765,39 @@ export default function AddProductModal({
                             className={`text-[9px] font-bold px-1.5 py-0.2 rounded-sm ${
                               mainUploadState === "error"
                                 ? "bg-red-100 text-red-800"
+                                : mainUploadState === "uploading"
+                                ? "bg-amber-100 text-amber-800"
                                 : "bg-emerald-100 text-emerald-800"
                             }`}
                           >
-                            {mainUploadState === "error" ? "Upload Failed" : "Uploaded"}
+                            {mainUploadState === "error"
+                              ? "Upload Failed"
+                              : mainUploadState === "uploading"
+                              ? `Uploading (${mainUploadProgress}%)`
+                              : "Uploaded"}
                           </span>
                         </div>
                         <p className="text-[11px] text-stone-500">
                           {mainImageDetails?.size ? `Size: ${mainImageDetails.size}` : "Cloudflare Storage active"}
                         </p>
-                        <p
-                          className={`text-[10px] font-medium mt-0.5 ${
-                            mainUploadState === "error" ? "text-red-600" : "text-emerald-600"
-                          }`}
-                        >
-                          {mainUploadState === "error"
-                            ? "⚠️ Photo upload failed, please retry"
-                            : "✓ Shown on boutique storefront and home grid"}
-                        </p>
+                        {mainUploadState === "uploading" ? (
+                          <div className="w-full h-1.5 bg-stone-200 rounded-full overflow-hidden mt-1.5">
+                            <div
+                              className="h-full bg-[#0d4f3c] transition-all duration-150"
+                              style={{ width: `${mainUploadProgress}%` }}
+                            />
+                          </div>
+                        ) : (
+                          <p
+                            className={`text-[10px] font-medium mt-0.5 ${
+                              mainUploadState === "error" ? "text-red-600" : "text-emerald-600"
+                            }`}
+                          >
+                            {mainUploadState === "error"
+                              ? "⚠️ Photo upload failed, please retry"
+                              : "✓ Shown on boutique storefront and home grid"}
+                          </p>
+                        )}
                       </div>
                       <div className="flex flex-col gap-1.5 shrink-0">
                         {mainUploadState === "error" && (
@@ -819,6 +837,21 @@ export default function AddProductModal({
                           <Trash2 size={11} />
                           <span>Remove</span>
                         </button>
+                      </div>
+                    </div>
+                  ) : mainUploadState === "uploading" ? (
+                    <div className="p-5 border-2 border-dashed border-amber-300 bg-amber-50/50 rounded-xl text-center">
+                      <div className="py-2 flex flex-col items-center gap-2 text-stone-700">
+                        <RefreshCw size={22} className="animate-spin text-[#0d4f3c]" />
+                        <p className="text-xs font-bold text-stone-900">
+                          Uploading & Securing Photo ({mainUploadProgress}%)
+                        </p>
+                        <div className="w-48 h-1.5 bg-stone-200 rounded-full overflow-hidden mt-1">
+                          <div
+                            className="h-full bg-[#0d4f3c] transition-all duration-150"
+                            style={{ width: `${mainUploadProgress}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -906,22 +939,20 @@ export default function AddProductModal({
                     </div>
                   )}
 
-                  {hoverUploadState === "uploading" ? (
-                    <div className="p-3.5 border border-dashed border-amber-300 bg-amber-50/50 rounded-xl text-center">
-                      <div className="py-1 flex items-center justify-center gap-2 text-stone-700 text-xs font-semibold">
-                        <RefreshCw size={14} className="animate-spin text-[#0d4f3c]" />
-                        <span>Uploading & Securing Photo ({hoverUploadProgress}%)</span>
-                      </div>
-                    </div>
-                  ) : hoverImage ? (
+                  {hoverImage ? (
                     <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-stone-200 shadow-2xs">
-                      <div className="w-16 h-20 rounded-lg overflow-hidden border border-stone-200 bg-stone-100 shrink-0">
+                      <div className="relative w-16 h-20 rounded-lg overflow-hidden border border-stone-200 bg-stone-100 shrink-0">
                         <img
                           src={normalizeImageUrl(hoverImage)}
                           alt="Hover Detail"
                           className="w-full h-full object-cover"
                           onError={handleImageError}
                         />
+                        {hoverUploadState === "uploading" && (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <RefreshCw size={16} className="animate-spin text-white" />
+                          </div>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -932,10 +963,16 @@ export default function AddProductModal({
                             className={`text-[9px] font-bold px-1.5 py-0.2 rounded-sm ${
                               hoverUploadState === "error"
                                 ? "bg-red-100 text-red-800"
+                                : hoverUploadState === "uploading"
+                                ? "bg-amber-100 text-amber-800"
                                 : "bg-emerald-100 text-emerald-800"
                             }`}
                           >
-                            {hoverUploadState === "error" ? "Upload Failed" : "Uploaded"}
+                            {hoverUploadState === "error"
+                              ? "Upload Failed"
+                              : hoverUploadState === "uploading"
+                              ? `Uploading (${hoverUploadProgress}%)`
+                              : "Uploaded"}
                           </span>
                         </div>
                         <p className="text-[11px] text-stone-500">
@@ -945,6 +982,14 @@ export default function AddProductModal({
                             ? `Size: ${hoverImageDetails.size}`
                             : "Cloudflare Storage active"}
                         </p>
+                        {hoverUploadState === "uploading" && (
+                          <div className="w-full h-1.5 bg-stone-200 rounded-full overflow-hidden mt-1.5">
+                            <div
+                              className="h-full bg-[#0d4f3c] transition-all duration-150"
+                              style={{ width: `${hoverUploadProgress}%` }}
+                            />
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col gap-1.5 shrink-0">
                         {hoverUploadState === "error" && (
@@ -984,6 +1029,13 @@ export default function AddProductModal({
                           <Trash2 size={11} />
                           <span>Remove</span>
                         </button>
+                      </div>
+                    </div>
+                  ) : hoverUploadState === "uploading" ? (
+                    <div className="p-3.5 border border-dashed border-amber-300 bg-amber-50/50 rounded-xl text-center">
+                      <div className="py-1 flex items-center justify-center gap-2 text-stone-700 text-xs font-semibold">
+                        <RefreshCw size={14} className="animate-spin text-[#0d4f3c]" />
+                        <span>Uploading & Securing Photo ({hoverUploadProgress}%)</span>
                       </div>
                     </div>
                   ) : (

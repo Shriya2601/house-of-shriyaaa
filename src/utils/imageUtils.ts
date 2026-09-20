@@ -43,13 +43,8 @@ export function normalizeImageUrl(url?: string | null, fallback = ""): string {
     return trimmed.replace("dl=0", "raw=1");
   }
 
-  // If this is an /uploads/ or /api/images/ URL, resolve to cached high-res data URL if available
-  if (
-    trimmed.includes("/uploads/") ||
-    trimmed.includes("/api/images/") ||
-    trimmed.startsWith("uploads/") ||
-    trimmed.startsWith("banners/")
-  ) {
+  // Check if any uploaded image is immediately available in local memory/storage cache
+  if (!trimmed.startsWith("data:") && !trimmed.startsWith("blob:")) {
     const cached = getLocalCachedImage(trimmed);
     if (cached) return cached;
   }

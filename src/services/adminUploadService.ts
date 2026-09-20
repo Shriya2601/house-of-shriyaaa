@@ -84,73 +84,110 @@ if (typeof window !== "undefined") {
   }).catch(() => {});
 }
 
+function getAllKeysForUrl(url: string): string[] {
+  if (!url) return [];
+  const keys = new Set<string>();
+  const trimmed = url.trim();
+  keys.add(trimmed);
+
+  const clean = trimmed.split("?")[0];
+  keys.add(clean);
+
+  // If absolute URL, extract pathname
+  try {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://houseofshriya.com";
+    const parsed = new URL(clean, origin);
+    if (parsed.pathname) {
+      keys.add(parsed.pathname);
+      keys.add(parsed.pathname.replace(/^\/+/, ""));
+    }
+  } catch {}
+
+  // Base filename
+  const baseName = clean.split("/").pop() || "";
+  if (baseName) {
+    keys.add(baseName);
+  }
+
+  // Leading slash variations
+  if (clean.startsWith("/")) {
+    keys.add(clean.slice(1));
+  } else {
+    keys.add(`/${clean}`);
+  }
+
+  return Array.from(keys).filter(Boolean);
+}
+
 export function registerLocalImageCache(url: string, dataUrl: string) {
   if (!url || !dataUrl) return;
-  const clean = url.split("?")[0];
-  localImageMemoryCache.set(clean, dataUrl);
-  const baseName = clean.split("/").pop() || "";
-  if (baseName && baseName !== clean) {
-    localImageMemoryCache.set(baseName, dataUrl);
-  }
+  const keys = getAllKeysForUrl(url);
 
-  // Persistent storage in IndexedDB (immune to 5MB localStorage limits)
-  setIndexedDbImage(clean, dataUrl);
-  if (baseName && baseName !== clean) {
-    setIndexedDbImage(baseName, dataUrl);
-  }
-
-  try {
-    sessionStorage.setItem(`hos_img_${clean}`, dataUrl);
-  } catch {}
-  try {
-    localStorage.setItem(`hos_img_${clean}`, dataUrl);
-    if (baseName && baseName !== clean) {
-      localStorage.setItem(`hos_img_${baseName}`, dataUrl);
-    }
-  } catch {
-    // If quota exceeded, purge older hos_img keys
+  for (const k of keys) {
+    localImageMemoryCache.set(k, dataUrl);
+    setIndexedDbImage(k, dataUrl);
     try {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith("hos_img_") && k !== `hos_img_${clean}`) {
-          keysToRemove.push(k);
-          if (keysToRemove.length >= 3) break;
-        }
-      }
-      keysToRemove.forEach((k) => localStorage.removeItem(k));
-      localStorage.setItem(`hos_img_${clean}`, dataUrl);
+      sessionStorage.setItem(`hos_img_${k}`, dataUrl);
     } catch {}
+  }
+
+  // Save in localStorage with quota management for main identifiers
+  const clean = url.split("?")[0];
+  const baseName = clean.split("/").pop() || "";
+  const primaryKeys = [clean, baseName].filter(Boolean);
+
+  for (const pk of primaryKeys) {
+    try {
+      localStorage.setItem(`hos_img_${pk}`, dataUrl);
+    } catch {
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith("hos_img_") && k !== `hos_img_${pk}`) {
+            keysToRemove.push(k);
+            if (keysToRemove.length >= 4) break;
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+        localStorage.setItem(`hos_img_${pk}`, dataUrl);
+      } catch {}
+    }
   }
 }
 
 export function getLocalCachedImage(url: string): string | null {
   if (!url) return null;
-  const clean = url.split("?")[0];
-  const baseName = clean.split("/").pop() || "";
+  const keys = getAllKeysForUrl(url);
 
-  if (localImageMemoryCache.has(clean)) {
-    return localImageMemoryCache.get(clean)!;
-  }
-  if (baseName && localImageMemoryCache.has(baseName)) {
-    return localImageMemoryCache.get(baseName)!;
-  }
-
-  try {
-    const fromSession = sessionStorage.getItem(`hos_img_${clean}`) || (baseName ? sessionStorage.getItem(`hos_img_${baseName}`) : null);
-    if (fromSession) {
-      localImageMemoryCache.set(clean, fromSession);
-      return fromSession;
+  // 1. Fast in-memory map check
+  for (const k of keys) {
+    if (localImageMemoryCache.has(k)) {
+      return localImageMemoryCache.get(k)!;
     }
-  } catch {}
+  }
 
-  try {
-    const fromLocal = localStorage.getItem(`hos_img_${clean}`) || (baseName ? localStorage.getItem(`hos_img_${baseName}`) : null);
-    if (fromLocal) {
-      localImageMemoryCache.set(clean, fromLocal);
-      return fromLocal;
-    }
-  } catch {}
+  // 2. SessionStorage check
+  for (const k of keys) {
+    try {
+      const fromSession = sessionStorage.getItem(`hos_img_${k}`);
+      if (fromSession) {
+        localImageMemoryCache.set(k, fromSession);
+        return fromSession;
+      }
+    } catch {}
+  }
+
+  // 3. LocalStorage check
+  for (const k of keys) {
+    try {
+      const fromLocal = localStorage.getItem(`hos_img_${k}`);
+      if (fromLocal) {
+        localImageMemoryCache.set(k, fromLocal);
+        return fromLocal;
+      }
+    } catch {}
+  }
 
   return null;
 }

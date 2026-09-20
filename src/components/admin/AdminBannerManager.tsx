@@ -708,6 +708,8 @@ export default function AdminBannerManager({
 
     setUploadingIndex(targetIndex);
     setAutoSaveStatus("saving");
+    isDirtyRef.current = true;
+    setIsDirty(true);
 
     cancelPendingAutoSave();
 
