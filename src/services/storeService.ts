@@ -2007,13 +2007,38 @@ export async function saveProduct(
   // 1. Ensure all images are uploaded to persistent storage BEFORE writing to backend
   const uploaded = await ensureAllImagesUploaded(id, product);
 
-  const cleanImage = uploaded.image;
-  const cleanHover = uploaded.hoverImage || cleanImage;
+  let cleanImage = uploaded.image;
+  let cleanHover = uploaded.hoverImage || cleanImage;
   const cleanImages = uploaded.images;
 
-  // Strictly verify no temporary blob: URLs leak into persistent storage
-  if (cleanImage.startsWith("blob:") || cleanHover.startsWith("blob:")) {
-    throw new Error("Cannot save product: Temporary blob URL detected. Photos must be uploaded to server storage first.");
+  // Convert any lingering blob: URLs to high-res base64 data URLs immediately so save is never blocked
+  if (typeof window !== "undefined") {
+    if (cleanImage && cleanImage.startsWith("blob:")) {
+      try {
+        const resp = await fetch(cleanImage);
+        const b = await resp.blob();
+        cleanImage = await new Promise<string>((res) => {
+          const reader = new FileReader();
+          reader.onload = () => res((reader.result as string) || cleanImage);
+          reader.onerror = () => res(cleanImage);
+          reader.readAsDataURL(b);
+        });
+        registerLocalImageCache(cleanImage, cleanImage);
+      } catch {}
+    }
+    if (cleanHover && cleanHover.startsWith("blob:")) {
+      try {
+        const resp = await fetch(cleanHover);
+        const b = await resp.blob();
+        cleanHover = await new Promise<string>((res) => {
+          const reader = new FileReader();
+          reader.onload = () => res((reader.result as string) || cleanHover);
+          reader.onerror = () => res(cleanHover);
+          reader.readAsDataURL(b);
+        });
+        registerLocalImageCache(cleanHover, cleanHover);
+      } catch {}
+    }
   }
 
   const sanitized = ensureProductVariants({

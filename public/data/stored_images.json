@@ -874,5 +874,89 @@
     "productId": "test-prod-1",
     "r2Url": null,
     "updatedAt": "2026-09-20T17:46:57.472Z"
+  },
+  "uploads_upload-1789928134934-1789928134934-90202_jpg": {
+    "key": "uploads/upload-1789928134934-1789928134934-90202.jpg",
+    "filename": "upload-1789928134934-1789928134934-90202.jpg",
+    "mimeType": "image/jpeg",
+    "size": 134,
+    "dataBase64": "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "slot": "test",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-20T18:15:34.935Z"
+  },
+  "upload-1789928134934-1789928134934-90202_jpg": {
+    "key": "uploads/upload-1789928134934-1789928134934-90202.jpg",
+    "filename": "upload-1789928134934-1789928134934-90202.jpg",
+    "mimeType": "image/jpeg",
+    "size": 134,
+    "dataBase64": "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "slot": "test",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-20T18:15:34.935Z"
+  },
+  "upload-1789928134934-1789928134934-90202": {
+    "key": "uploads/upload-1789928134934-1789928134934-90202.jpg",
+    "filename": "upload-1789928134934-1789928134934-90202.jpg",
+    "mimeType": "image/jpeg",
+    "size": 134,
+    "dataBase64": "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "slot": "test",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-20T18:15:34.935Z"
+  },
+  "uploads_upload-1789928372233-1789928372233-8123_png": {
+    "key": "uploads/upload-1789928372233-1789928372233-8123.png",
+    "filename": "upload-1789928372233-1789928372233-8123.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "test",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-20T18:19:32.234Z"
+  },
+  "upload-1789928372233-1789928372233-8123_png": {
+    "key": "uploads/upload-1789928372233-1789928372233-8123.png",
+    "filename": "upload-1789928372233-1789928372233-8123.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "test",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-20T18:19:32.234Z"
+  },
+  "upload-1789928372233-1789928372233-8123": {
+    "key": "uploads/upload-1789928372233-1789928372233-8123.png",
+    "filename": "upload-1789928372233-1789928372233-8123.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "test",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-20T18:19:32.234Z"
+  },
+  "uploads_upload-1789928372233-1789928372233-8123_jpg": {
+    "key": "uploads/upload-1789928372233-1789928372233-8123.png",
+    "filename": "upload-1789928372233-1789928372233-8123.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "test",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-20T18:19:32.234Z"
   }
 }

@@ -171,25 +171,29 @@ export async function getDocs(colRef: ColRef): Promise<QuerySnapshot> {
   try {
     if (_collection === "products") {
       const res = await fetch("/api/products");
-      if (res.ok) {
+      const cType = res.headers.get("content-type") || "";
+      if (res.ok && cType.includes("json")) {
         const json = await res.json();
         if (Array.isArray(json)) items = json;
       }
     } else if (_collection === "categories") {
       const res = await fetch("/api/categories");
-      if (res.ok) {
+      const cType = res.headers.get("content-type") || "";
+      if (res.ok && cType.includes("json")) {
         const json = await res.json();
         if (Array.isArray(json)) items = json;
       }
     } else if (_collection === "orders") {
       const res = await fetch("/api/orders");
-      if (res.ok) {
+      const cType = res.headers.get("content-type") || "";
+      if (res.ok && cType.includes("json")) {
         const json = await res.json();
         if (Array.isArray(json)) items = json;
       }
     } else if (_collection === "bookings") {
       const res = await fetch("/api/bookings");
-      if (res.ok) {
+      const cType = res.headers.get("content-type") || "";
+      if (res.ok && cType.includes("json")) {
         const json = await res.json();
         if (Array.isArray(json)) items = json;
       }
