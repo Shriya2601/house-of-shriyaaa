@@ -302,19 +302,26 @@ export default function AddProductModal({
     setError(null);
 
     const prodId = productToEdit?.id || `hos-${Date.now()}`;
+    let previewUrl = "";
     try {
       // Local immediate preview for responsive UI feedback
-      const previewUrl = URL.createObjectURL(file);
+      previewUrl = URL.createObjectURL(file);
       setImage(previewUrl);
       setMainImageDetails({ name: file.name, size: formatBytes(file.size) });
 
-      // Direct Firebase Storage Resumable upload
+      // Direct Firebase/Storage upload
       const downloadUrl = await uploadProductFileToFirebase(
         file,
         prodId,
         "main",
         (pct) => setMainUploadProgress(pct)
       );
+
+      if (previewUrl) {
+        try {
+          URL.revokeObjectURL(previewUrl);
+        } catch {}
+      }
 
       setImage(downloadUrl);
       setMainUploadState("uploaded");
@@ -326,13 +333,19 @@ export default function AddProductModal({
         "color: #15803d; font-weight: 600;"
       );
 
-      if (!hoverImage || hoverImage === image || (productToEdit && hoverImage === productToEdit.image)) {
+      if (!hoverImage || hoverImage === image || hoverImage === previewUrl || (productToEdit && hoverImage === productToEdit.image)) {
         setHoverImage(downloadUrl);
         setHoverImageDetails({ name: file.name, size: formatBytes(file.size) });
         setHoverUploadState("uploaded");
         setHoverUploadError(null);
       }
     } catch (error: any) {
+      if (previewUrl) {
+        try {
+          URL.revokeObjectURL(previewUrl);
+        } catch {}
+      }
+      setImage(productToEdit?.image || "");
       console.error(
         `%c[AdminPortal:AddProductModal] %c❌ [Main Photo Upload Error]`,
         "color: #4338ca; font-weight: bold;",
@@ -364,8 +377,9 @@ export default function AddProductModal({
     setError(null);
 
     const prodId = productToEdit?.id || `hos-${Date.now()}`;
+    let previewUrl = "";
     try {
-      const previewUrl = URL.createObjectURL(file);
+      previewUrl = URL.createObjectURL(file);
       setHoverImage(previewUrl);
       setHoverImageDetails({ name: file.name, size: formatBytes(file.size) });
 
@@ -375,6 +389,12 @@ export default function AddProductModal({
         "hover",
         (pct) => setHoverUploadProgress(pct)
       );
+
+      if (previewUrl) {
+        try {
+          URL.revokeObjectURL(previewUrl);
+        } catch {}
+      }
 
       setHoverImage(downloadUrl);
       setHoverUploadState("uploaded");
@@ -386,6 +406,12 @@ export default function AddProductModal({
         "color: #15803d; font-weight: 600;"
       );
     } catch (error: any) {
+      if (previewUrl) {
+        try {
+          URL.revokeObjectURL(previewUrl);
+        } catch {}
+      }
+      setHoverImage(productToEdit?.hoverImage || productToEdit?.image || "");
       console.error(
         `%c[AdminPortal:AddProductModal] %c❌ [Hover Photo Upload Error]`,
         "color: #4338ca; font-weight: bold;",
@@ -465,8 +491,8 @@ export default function AddProductModal({
     }
 
     if (mainUploadState === "uploading" || hoverUploadState === "uploading" || extraUploadState === "uploading") {
-      // If upload is actively processing in the background, allow a brief moment or let the submit handler finalize it
-      console.log("[AddProductModal] Photos currently uploading, finalizing during save...");
+      setError("Photos are currently uploading. Please wait for the upload progress to complete before saving.");
+      return;
     }
 
     setSubmitting(true);
@@ -483,34 +509,27 @@ export default function AddProductModal({
         return trimmed;
       }
       try {
-        const fileSource =
+        let fileSource: File | Blob | string =
           slot === "main" && lastMainFileRef.current
             ? lastMainFileRef.current
             : slot === "hover" && lastHoverFileRef.current
             ? lastHoverFileRef.current
             : trimmed;
+        if (trimmed.startsWith("blob:") && typeof window !== "undefined" && typeof fileSource === "string") {
+          const resp = await fetch(trimmed);
+          fileSource = await resp.blob();
+        }
         const uploaded = await uploadProductImageToFirebase(prodId, slot, fileSource);
         if (uploaded && !uploaded.startsWith("blob:")) {
           return uploaded;
         }
-        if (uploaded) return uploaded;
       } catch (err: any) {
-        console.warn(`[AddProductModal] Pre-upload notice for ${slot}:`, err);
+        console.error(`[AddProductModal] Pre-upload failure for ${slot}:`, err);
+        throw err;
       }
 
-      // Safe conversion for any remaining blob: URL so it is never an ephemeral URL
       if (trimmed.startsWith("blob:")) {
-        try {
-          const resp = await fetch(trimmed);
-          const b = await resp.blob();
-          const reader = new FileReader();
-          const dUrl = await new Promise<string>((res) => {
-            reader.onload = () => res(reader.result as string);
-            reader.onerror = () => res("");
-            reader.readAsDataURL(b);
-          });
-          if (dUrl) return dUrl;
-        } catch {}
+        throw new Error(`The photo for "${slot}" is a temporary preview and failed to upload. Please select the image again.`);
       }
 
       return trimmed;
@@ -619,11 +638,10 @@ export default function AddProductModal({
         cleanupOldStorageImage(productToEdit.image, finalMainImg).catch(() => {});
       }
 
-      if (typeof onSave === "function") {
-        onSave(savedProd);
-      }
       if (typeof onSuccess === "function") {
         onSuccess(savedProd);
+      } else if (typeof onSave === "function") {
+        onSave(savedProd);
       }
       onClose();
     } catch (err: any) {

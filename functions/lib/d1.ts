@@ -206,6 +206,8 @@ export async function ensureD1Tables(env: any): Promise<void> {
       created_at TEXT,
       updated_at TEXT
     )`,
+    `CREATE INDEX IF NOT EXISTS idx_stored_images_filename ON stored_images (filename)`,
+    `CREATE INDEX IF NOT EXISTS idx_stored_images_product_id ON stored_images (product_id)`,
     `CREATE TABLE IF NOT EXISTS brand_styles (
       id TEXT PRIMARY KEY,
       data_json TEXT NOT NULL,

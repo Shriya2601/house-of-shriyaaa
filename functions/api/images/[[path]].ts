@@ -111,14 +111,14 @@ export async function onRequestGet(context: {
     let rows: any[] = [];
     if (db) {
       const stmt = db.prepare(
-        `SELECT data_url, mime_type, filename, r2_url FROM stored_images WHERE key IN (${placeholders}) OR filename IN (${placeholders}) LIMIT 1`
+        `SELECT key, data_url, mime_type, filename, r2_url FROM stored_images WHERE key IN (${placeholders}) OR filename IN (${placeholders}) LIMIT 1`
       );
       const res = await stmt.bind(...candidates, ...candidates).all();
       rows = res?.results || [];
     } else {
       const queryRes = await executeD1Query(
         env,
-        `SELECT data_url, mime_type, filename, r2_url FROM stored_images WHERE key IN (${placeholders}) OR filename IN (${placeholders}) LIMIT 1`,
+        `SELECT key, data_url, mime_type, filename, r2_url FROM stored_images WHERE key IN (${placeholders}) OR filename IN (${placeholders}) LIMIT 1`,
         [...candidates, ...candidates]
       );
       rows = queryRes.results || [];
@@ -126,25 +126,54 @@ export async function onRequestGet(context: {
 
     if (rows.length > 0) {
       const row = rows[0];
+
+      // If R2 bucket is bound and row has an R2 key, fetch authoritative binary directly
+      if (r2Bucket && row.key) {
+        try {
+          const r2Obj = await r2Bucket.get(row.key);
+          if (r2Obj) {
+            const headers = new Headers();
+            if (typeof r2Obj.writeHttpMetadata === "function") {
+              r2Obj.writeHttpMetadata(headers);
+            }
+            if (r2Obj.httpEtag) {
+              headers.set("etag", r2Obj.httpEtag);
+            }
+            headers.set("Content-Type", r2Obj.httpMetadata?.contentType || row.mime_type || "image/jpeg");
+            headers.set("Cache-Control", "public, max-age=31536000, immutable");
+            headers.set("Access-Control-Allow-Origin", "*");
+            return new Response(r2Obj.body, { headers });
+          }
+        } catch (r2FetchErr) {
+          console.warn("[Cloudflare Image D1->R2 Key Notice]:", r2FetchErr);
+        }
+      }
+
       const dataUrl = row.data_url;
       const mime = row.mime_type || "image/jpeg";
 
-      if (dataUrl) {
+      if (dataUrl && typeof dataUrl === "string" && dataUrl.startsWith("data:")) {
         const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
         if (match) {
-          const binaryStr = atob(match[2]);
-          const len = binaryStr.length;
-          const bytes = new Uint8Array(len);
-          for (let i = 0; i < len; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
+          try {
+            const cleanB64 = match[2].replace(/[\r\n\s]+/g, "").replace(/-/g, "+").replace(/_/g, "/");
+            const padded = cleanB64 + "=".repeat((4 - (cleanB64.length % 4)) % 4);
+            const binaryStr = atob(padded);
+            const len = binaryStr.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+              bytes[i] = binaryStr.charCodeAt(i);
+            }
+            return new Response(bytes.buffer, {
+              headers: {
+                "Content-Type": match[1] || mime,
+                "Cache-Control": "public, max-age=86400",
+                "Access-Control-Allow-Origin": "*",
+              },
+            });
+          } catch (b64Err) {
+            console.warn("[Cloudflare Image D1 Base64 Decode Notice]:", b64Err);
           }
-          return new Response(bytes.buffer, {
-            headers: {
-              "Content-Type": match[1] || mime,
-              "Cache-Control": "public, max-age=86400",
-              "Access-Control-Allow-Origin": "*",
-            },
-          });
         }
       } else if (row.r2_url && (row.r2_url.startsWith("http://") || row.r2_url.startsWith("https://"))) {
         return Response.redirect(row.r2_url, 302);

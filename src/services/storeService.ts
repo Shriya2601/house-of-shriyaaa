@@ -1536,36 +1536,26 @@ async function ensureAllImagesUploaded(
       return uploadCache.get(trimmed)!;
     }
     try {
-      const uploadedUrl = await uploadProductImageToFirebase(prodId, slot, trimmed);
+      let toUpload: File | Blob | string = trimmed;
+      if (trimmed.startsWith("blob:") && typeof window !== "undefined") {
+        const resp = await fetch(trimmed);
+        toUpload = await resp.blob();
+      }
+      const uploadedUrl = await uploadProductImageToFirebase(prodId, slot, toUpload);
       if (uploadedUrl && !uploadedUrl.startsWith("blob:")) {
         uploadCache.set(trimmed, uploadedUrl);
         return uploadedUrl;
       }
     } catch (e) {
-      console.warn(`[ensureAllImagesUploaded] Upload warning for ${slot}:`, e);
+      console.error(`[ensureAllImagesUploaded] Upload failure for ${slot}:`, e);
+      throw e;
     }
-    // Fallback: If trimmed is already an image URL or dataUrl, use it safely
-    if (trimmed && !trimmed.startsWith("blob:")) {
-      uploadCache.set(trimmed, trimmed);
-      return trimmed;
+
+    if (trimmed.startsWith("blob:")) {
+      throw new Error(`Cannot save product: Photo for "${slot}" is a temporary preview that could not be uploaded to permanent storage.`);
     }
-    // If it's a blob: URL, resolve to base64 dataUrl so it is permanent and persistent
-    if (typeof window !== "undefined" && trimmed.startsWith("blob:")) {
-      try {
-        const resp = await fetch(trimmed);
-        const b = await resp.blob();
-        const reader = new FileReader();
-        const dUrl = await new Promise<string>((res) => {
-          reader.onload = () => res(reader.result as string);
-          reader.onerror = () => res("");
-          reader.readAsDataURL(b);
-        });
-        if (dUrl) {
-          uploadCache.set(trimmed, dUrl);
-          return dUrl;
-        }
-      } catch {}
-    }
+
+    uploadCache.set(trimmed, trimmed);
     return trimmed;
   };
 
@@ -1758,10 +1748,43 @@ export function subscribeProducts(callback: (products: Product[]) => void): () =
                 (!p.name || !deleted.has(p.name))
             );
 
-          // Backend API is the single authoritative source of truth.
-          // Directly update local cache with verified server data and notify subscribers.
-          cacheProductsLocally(normalized);
-          callback(normalized);
+          // Backend API is the authoritative source, merged with recent local saves to prevent live sync race conditions
+          const currentCached = getCachedProducts();
+          const serverMap = new Map<string, Product>();
+          normalized.forEach((p) => serverMap.set(p.id, p));
+
+          if (currentCached && currentCached.length > 0) {
+            for (const localProd of currentCached) {
+              if (deleted.has(localProd.id) || (localProd.name && deleted.has(localProd.name))) {
+                continue;
+              }
+              const serverProd = serverMap.get(localProd.id);
+              if (!serverProd) {
+                // If saved locally within last 45 seconds, keep it until server sync completes
+                const localTime = localProd.updatedAt ? new Date(localProd.updatedAt).getTime() : 0;
+                if (Date.now() - localTime < 45000) {
+                  serverMap.set(localProd.id, localProd);
+                }
+              } else {
+                // If local product has a newer updatedAt timestamp, preserve the local product's images and attributes
+                const localTime = localProd.updatedAt ? new Date(localProd.updatedAt).getTime() : 0;
+                const serverTime = serverProd.updatedAt ? new Date(serverProd.updatedAt).getTime() : 0;
+                if (localTime > serverTime && localTime - serverTime < 45000) {
+                  serverMap.set(localProd.id, {
+                    ...serverProd,
+                    ...localProd,
+                    image: localProd.image || serverProd.image,
+                    hoverImage: localProd.hoverImage || serverProd.hoverImage,
+                    images: (localProd.images && localProd.images.length > 0) ? localProd.images : serverProd.images,
+                  });
+                }
+              }
+            }
+          }
+
+          const mergedAuthoritative = Array.from(serverMap.values());
+          cacheProductsLocally(mergedAuthoritative);
+          callback(mergedAuthoritative);
           return;
         }
       }
@@ -1948,43 +1971,16 @@ export async function saveProduct(
   const cleanHover = uploaded.hoverImage || cleanImage;
   const cleanImages = uploaded.images;
 
-  // Ensure no temporary blob: URLs leak into storage; data: URLs are safely allowed as permanent inline image data
-  let resolvedCleanImage = cleanImage;
-  let resolvedCleanHover = cleanHover;
-
-  if (typeof window !== "undefined" && resolvedCleanImage.startsWith("blob:")) {
-    try {
-      const resp = await fetch(resolvedCleanImage);
-      const b = await resp.blob();
-      const reader = new FileReader();
-      const dUrl = await new Promise<string>((res) => {
-        reader.onload = () => res(reader.result as string);
-        reader.onerror = () => res("");
-        reader.readAsDataURL(b);
-      });
-      if (dUrl) resolvedCleanImage = dUrl;
-    } catch {}
-  }
-
-  if (typeof window !== "undefined" && resolvedCleanHover.startsWith("blob:")) {
-    try {
-      const resp = await fetch(resolvedCleanHover);
-      const b = await resp.blob();
-      const reader = new FileReader();
-      const dUrl = await new Promise<string>((res) => {
-        reader.onload = () => res(reader.result as string);
-        reader.onerror = () => res("");
-        reader.readAsDataURL(b);
-      });
-      if (dUrl) resolvedCleanHover = dUrl;
-    } catch {}
+  // Strictly verify no temporary blob: URLs leak into persistent storage
+  if (cleanImage.startsWith("blob:") || cleanHover.startsWith("blob:")) {
+    throw new Error("Cannot save product: Temporary blob URL detected. Photos must be uploaded to server storage first.");
   }
 
   const sanitized = ensureProductVariants({
     ...product,
     id,
-    image: resolvedCleanImage,
-    hoverImage: resolvedCleanHover,
+    image: cleanImage,
+    hoverImage: cleanHover,
     images: cleanImages,
     colorVariants: uploaded.colorVariants,
     updatedAt: new Date().toISOString(),

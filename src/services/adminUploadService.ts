@@ -632,44 +632,52 @@ export async function uploadImageToAdminStorage(
     tracker.logApiError("/api/admin/upload", formErr);
   }
 
-  // =========================================================================
-  // STAGE 4: Resilient Local Cache & Memory Registration
-  // =========================================================================
-  try {
-    onProgress?.(95);
-    const finalDataUrl = optimizedDataUrl || (typeof processedSource === "string" ? processedSource : "");
+  // Strategy C: Fallback JSON POST to /api/upload
+  if (optimizedDataUrl && optimizedDataUrl.startsWith("data:")) {
+    try {
+      const altEndpoint = buildUploadUrl("/api/upload", { slot, productId });
+      tracker.logApiAttempt(altEndpoint, "POST (Fallback JSON dataUrl)", 3);
+      const altResponse = await fetch(altEndpoint, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify({
+          dataUrl: optimizedDataUrl,
+          slot,
+          productId,
+        }),
+      });
 
-    if (finalDataUrl) {
-      const timestamp = Date.now();
-      const rand = Math.floor(Math.random() * 100000);
-      const safeSlot = (slot || "img").replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 32);
-      const targetFilename = `${safeSlot}-${timestamp}-${rand}.jpg`;
-      const persistentUrl = `/uploads/${targetFilename}?v=${timestamp}`;
-
-      registerLocalImageCache(persistentUrl, finalDataUrl);
-      registerLocalImageCache(`/uploads/${targetFilename}`, finalDataUrl);
-      registerLocalImageCache(targetFilename, finalDataUrl);
-      registerLocalImageCache(finalDataUrl, finalDataUrl);
-      tracker.logCacheRegistration([persistentUrl, `/uploads/${targetFilename}`, targetFilename, finalDataUrl]);
-
-      onProgress?.(100);
-      tracker.logComplete(persistentUrl, "LOCAL_CACHE_FALLBACK");
-      return persistentUrl;
+      const altContentType = altResponse?.headers?.get("content-type") || "";
+      if (altResponse && altResponse.ok && !altContentType.includes("text/html")) {
+        const result: AdminUploadResponse = await altResponse.json();
+        if (result.success && result.url) {
+          tracker.logApiResult(altEndpoint, altResponse.status, altContentType, result);
+          onProgress?.(100);
+          let base = result.url.split("?")[0];
+          if (typeof window !== "undefined" && base.startsWith(window.location.origin)) {
+            base = base.replace(window.location.origin, "");
+          }
+          const finalUrl = `${base}?v=${Date.now()}`;
+          registerLocalImageCache(finalUrl, optimizedDataUrl);
+          registerLocalImageCache(base, optimizedDataUrl);
+          tracker.logCacheRegistration([finalUrl, base]);
+          tracker.logComplete(finalUrl, "SERVER_API");
+          return finalUrl;
+        }
+      }
+    } catch (altJsonErr) {
+      tracker.logApiError("/api/upload", altJsonErr);
     }
-
-    onProgress?.(100);
-    throw new Error("Failed to process image. Please verify backend server is reachable.");
-  } catch (fallbackErr: any) {
-    tracker.logFailure(fallbackErr);
-    if (optimizedDataUrl) {
-      const timestamp = Date.now();
-      const safeSlot = (slot || "img").replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 32);
-      const fallbackUrl = `/uploads/${safeSlot}-${timestamp}.jpg?v=${timestamp}`;
-      registerLocalImageCache(fallbackUrl, optimizedDataUrl);
-      registerLocalImageCache(optimizedDataUrl, optimizedDataUrl);
-      return optimizedDataUrl;
-    }
-    throw new Error(fallbackErr?.message || "Failed to process and store image.");
   }
+
+  // All server upload attempts failed. Do NOT invent a ghost URL that doesn't exist on server.
+  const uploadFailureMessage =
+    "Failed to upload and persist image to server storage. Please check server connection and retry.";
+  tracker.logFailure(new Error(uploadFailureMessage));
+  throw new Error(uploadFailureMessage);
 }
 

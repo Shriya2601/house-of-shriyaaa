@@ -95,6 +95,18 @@ function isAuthorizedAdmin(request: Request, env: Env): boolean {
   return true;
 }
 
+function safeBase64ToArrayBuffer(b64: string): ArrayBuffer {
+  const cleaned = b64.replace(/[\r\n\s]+/g, "").replace(/-/g, "+").replace(/_/g, "/");
+  const padded = cleaned + "=".repeat((4 - (cleaned.length % 4)) % 4);
+  const binaryStr = atob(padded);
+  const len = binaryStr.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
 function arrayBufferToDataUrl(buffer: ArrayBuffer, mime: string): string {
   // Cap at 1.2MB for safe D1 row size limit
   if (buffer.byteLength > 1200000) {
@@ -197,12 +209,7 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
         if (match) {
           providedDataUrl = fileCandidate;
           mimeType = match[1];
-          const binaryStr = atob(match[2]);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
-          }
-          fileBuffer = bytes.buffer;
+          fileBuffer = safeBase64ToArrayBuffer(match[2]);
           const ext = mimeType.split("/")[1]?.replace("+xml", "") || "jpg";
           filename = `${slot}-${Date.now()}.${ext}`;
         } else {
@@ -250,21 +257,11 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
       if (match) {
         providedDataUrl = dataUrlCandidate;
         mimeType = match[1];
-        const binaryStr = atob(match[2]);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
-        fileBuffer = bytes.buffer;
+        fileBuffer = safeBase64ToArrayBuffer(match[2]);
       } else {
         // Plain base64 string
         try {
-          const binaryStr = atob(dataUrlCandidate.replace(/[\r\n\s]+/g, ""));
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
-          }
-          fileBuffer = bytes.buffer;
+          fileBuffer = safeBase64ToArrayBuffer(dataUrlCandidate);
           mimeType = body?.mimeType || "image/jpeg";
           providedDataUrl = `data:${mimeType};base64,${dataUrlCandidate}`;
         } catch {
@@ -334,7 +331,7 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
 
     if (r2Bucket) {
       try {
-        await r2Bucket.put(key, fileBuffer, {
+        const r2Metadata = {
           httpMetadata: {
             contentType: mimeType,
             cacheControl: "public, max-age=31536000, immutable",
@@ -345,7 +342,15 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
             filename,
             uploadedAt: new Date().toISOString(),
           },
-        });
+        };
+
+        await r2Bucket.put(key, fileBuffer, r2Metadata);
+
+        const shortFilename = key.split("/").pop();
+        if (shortFilename && shortFilename !== key) {
+          await r2Bucket.put(`uploads/${shortFilename}`, fileBuffer, r2Metadata).catch(() => {});
+          await r2Bucket.put(shortFilename, fileBuffer, r2Metadata).catch(() => {});
+        }
         storageType = "cloudflare_r2";
       } catch (r2Err) {
         console.error("[Cloudflare R2 Put Error]:", r2Err);
@@ -405,12 +410,16 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
 
       if (db) {
         await db.prepare(d1InsertSql).bind(...d1Values).run();
-        if (filename && filename !== key) {
-          const filenameValues = [
-            filename,
+        const shortFilename = key.split("/").pop();
+        const aliases = Array.from(new Set([filename, shortFilename])).filter(
+          (a) => a && a !== key
+        ) as string[];
+        for (const alias of aliases) {
+          const aliasValues = [
+            alias,
             dataUrlToStore || "",
             mimeType,
-            filename,
+            alias,
             imageSize,
             slot || "",
             productId || "",
@@ -418,16 +427,20 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
             nowIso,
             nowIso,
           ];
-          await db.prepare(d1InsertSql).bind(...filenameValues).run().catch(() => {});
+          await db.prepare(d1InsertSql).bind(...aliasValues).run().catch(() => {});
         }
       } else {
         await executeD1Query(env, d1InsertSql, d1Values);
-        if (filename && filename !== key) {
+        const shortFilename = key.split("/").pop();
+        const aliases = Array.from(new Set([filename, shortFilename])).filter(
+          (a) => a && a !== key
+        ) as string[];
+        for (const alias of aliases) {
           await executeD1Query(env, d1InsertSql, [
-            filename,
+            alias,
             dataUrlToStore || "",
             mimeType,
-            filename,
+            alias,
             imageSize,
             slot || "",
             productId || "",
