@@ -45,8 +45,8 @@ export function normalizeImageUrl(url?: string | null, fallback = ""): string {
 
   // If this is an /uploads/ or /api/images/ URL, resolve to cached high-res data URL if available
   if (
-    trimmed.startsWith("/uploads/") ||
-    trimmed.startsWith("/api/images/") ||
+    trimmed.includes("/uploads/") ||
+    trimmed.includes("/api/images/") ||
     trimmed.startsWith("uploads/") ||
     trimmed.startsWith("banners/")
   ) {

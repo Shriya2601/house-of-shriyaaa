@@ -75,3 +75,25 @@ export function getR2PublicBaseUrl(env: any): string {
   }
   return "";
 }
+
+export function getKVNamespace(env: any): any | null {
+  if (!env || typeof env !== "object") return null;
+  const candidates = [
+    env.KV,
+    env.kv,
+    env.IMAGES_KV,
+    env.images_kv,
+    env.STORE_KV,
+    env.store_kv,
+    env.STORAGE_KV,
+    env.storage_kv,
+    env.IMAGES,
+    env.images,
+  ];
+  for (const b of candidates) {
+    if (b && typeof b.get === "function" && typeof b.put === "function") {
+      return b;
+    }
+  }
+  return null;
+}

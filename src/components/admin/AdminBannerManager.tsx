@@ -21,7 +21,7 @@ import {
 
 import { useStore } from "../../context/StoreContext";
 import { saveSiteContent, withTimeout } from "../../services/storeService";
-import { uploadImageToAdminStorage } from "../../services/adminUploadService";
+import { uploadImageToAdminStorage, registerLocalImageCache } from "../../services/adminUploadService";
 import { HeroSlide } from "../../types";
 import { normalizeImageUrl } from "../../utils/imageUtils";
 
@@ -718,6 +718,8 @@ export default function AdminBannerManager({
        */
       const compressedDataUrl = await compressImage(file);
 
+      registerLocalImageCache(compressedDataUrl, compressedDataUrl);
+
       const previewSlides = slidesRef.current.map(
         (slide, index) =>
           index === targetIndex
@@ -746,6 +748,9 @@ export default function AdminBannerManager({
         finalImageUrl = await uploadImageToAdminStorage(compressedDataUrl, {
           slot: `hero-slide-${targetIndex + 1}`,
         });
+        if (finalImageUrl) {
+          registerLocalImageCache(finalImageUrl, compressedDataUrl);
+        }
         console.log(
           `%c[AdminPortal:BannerManager] %c✅ [Banner Upload Succeeded] %cResolved URL: ${finalImageUrl}`,
           "color: #4338ca; font-weight: bold;",

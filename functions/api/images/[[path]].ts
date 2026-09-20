@@ -4,7 +4,7 @@
  * Zero Firebase usage!
  */
 
-import { getR2Bucket } from "../../lib/r2";
+import { getR2Bucket, getKVNamespace } from "../../lib/r2";
 import { executeD1Query, ensureD1Tables, getD1Binding } from "../../lib/d1";
 
 interface Env {
@@ -86,6 +86,36 @@ export async function onRequestGet(context: {
       }
     } catch (r2Err) {
       console.warn("[Cloudflare R2 Get Notice]:", r2Err);
+    }
+  }
+
+  // 1b. Try Cloudflare KV Namespace
+  const kv = getKVNamespace(env);
+  if (kv) {
+    try {
+      const filename = key.split("/").pop() || key;
+      const candidates = [
+        key,
+        filename,
+        `uploads/${filename}`,
+        `uploads/${key}`,
+        `banners/${filename}`,
+        `banners/${key}`,
+      ];
+      for (const cand of candidates) {
+        const item = await kv.get(cand, { type: "arrayBuffer" });
+        if (item) {
+          return new Response(item, {
+            headers: {
+              "Content-Type": "image/jpeg",
+              "Cache-Control": "public, max-age=31536000, immutable",
+              "Access-Control-Allow-Origin": "*",
+            },
+          });
+        }
+      }
+    } catch (kvErr) {
+      console.warn("[Cloudflare KV Get Notice]:", kvErr);
     }
   }
 
@@ -181,6 +211,28 @@ export async function onRequestGet(context: {
     }
   } catch (d1Err) {
     console.warn("[Cloudflare Image D1 Fallback Notice]:", d1Err);
+  }
+
+  // 2b. Static asset fallback via env.ASSETS
+  if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
+    try {
+      const filename = key.split("/").pop() || key;
+      const staticCandidates = [
+        `/uploads/${filename}`,
+        `/uploads/${key}`,
+        `/${key}`,
+        `/banners/${filename}`,
+      ];
+      for (const relPath of staticCandidates) {
+        const testUrl = new URL(relPath, request.url).toString();
+        const assetResp = await env.ASSETS.fetch(testUrl);
+        if (assetResp && assetResp.ok && !assetResp.headers.get("content-type")?.includes("text/html")) {
+          return assetResp;
+        }
+      }
+    } catch (assetErr) {
+      console.warn("[Cloudflare ASSETS Fetch Notice]:", assetErr);
+    }
   }
 
   // 3. Not found - return JSON error

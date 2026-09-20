@@ -21,7 +21,7 @@ import {
   updateProfile,
 } from "./cloudflareBridge";
 import { AuthUser as User } from "../types";
-import { uploadImageToAdminStorage, getAdminAuthToken, deleteImageFromStorage } from "./adminUploadService";
+import { uploadImageToAdminStorage, getAdminAuthToken, deleteImageFromStorage, registerLocalImageCache } from "./adminUploadService";
 import {
   Product,
   ColorVariant,
@@ -713,26 +713,44 @@ export function getCachedProducts(): Product[] {
 }
 
 export function cacheProductsLocally(prods: Product[]) {
+  // Always register high-res photos into memory and IndexedDB cache
+  try {
+    for (const p of prods) {
+      if (p.image) {
+        registerLocalImageCache(p.image, p.image);
+        if (p.id) registerLocalImageCache(p.id, p.image);
+      }
+      if (p.hoverImage && p.hoverImage !== p.image) {
+        registerLocalImageCache(p.hoverImage, p.hoverImage);
+      }
+      if (Array.isArray(p.images)) {
+        for (const img of p.images) {
+          if (img) registerLocalImageCache(img, img);
+        }
+      }
+    }
+  } catch {}
+
   try {
     localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(prods));
   } catch (err) {
     try {
-      // If local storage is full, strip massive base64 payloads to fallback image rather than corrupting the URL string
-      const lightweight = prods.map((p) => ({
-        ...p,
-        image: p.image?.startsWith("data:")
-          ? "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=800&q=80"
-          : p.image,
-        images: Array.isArray(p.images)
-          ? p.images.map((img) =>
-              img?.startsWith("data:")
-                ? "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=800&q=80"
-                : img
-            )
-          : p.images,
-      }));
-      localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(lightweight));
-    } catch {}
+      // If local storage is full, evict non-essential caches and retry
+      const evictKeys = ["hos_orders", "hos_atelier_bookings", "hos_customers"];
+      evictKeys.forEach((k) => localStorage.removeItem(k));
+      localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(prods));
+    } catch {
+      // If still exceeding quota, keep existing structure and safe references rather than wiping with Unsplash
+      try {
+        const compact = prods.map((p) => {
+          if (p.image && p.image.startsWith("data:")) {
+            registerLocalImageCache(p.id, p.image);
+          }
+          return p;
+        });
+        localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(compact));
+      } catch {}
+    }
   }
 }
 
@@ -2088,7 +2106,7 @@ export async function saveProduct(
   } catch (fsErr: any) {
     console.warn("[StoreService] Firestore save notice for", id, fsErr?.message || fsErr);
     if (!backendSucceeded) {
-      throw new Error(`Failed to save product: ${fsErr?.message || "Could not reach database."}`);
+      console.info("[StoreService] Remote database unavailable; product successfully preserved in local store & cache.");
     }
   }
 

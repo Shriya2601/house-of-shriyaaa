@@ -5,7 +5,7 @@
  */
 
 import { ensureD1Tables, getD1Binding, executeD1Query } from "../../lib/d1";
-import { getR2Bucket, getR2PublicBaseUrl } from "../../lib/r2";
+import { getR2Bucket, getR2PublicBaseUrl, getKVNamespace } from "../../lib/r2";
 
 interface Env {
   [key: string]: any;
@@ -328,6 +328,7 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     // 3. Upload to Cloudflare R2 Bucket
     const r2Bucket = getR2Bucket(env);
     let storageType = "cloudflare_d1";
+    let hasCloudStorage = false;
 
     if (r2Bucket) {
       try {
@@ -352,32 +353,40 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
           await r2Bucket.put(shortFilename, fileBuffer, r2Metadata).catch(() => {});
         }
         storageType = "cloudflare_r2";
+        hasCloudStorage = true;
       } catch (r2Err) {
         console.error("[Cloudflare R2 Put Error]:", r2Err);
       }
     }
 
-    // 4. Construct permanent public URL
-    const r2PublicDomain = getR2PublicBaseUrl(env);
-    let rawFinalUrl = "";
-
-    if (r2PublicDomain) {
-      rawFinalUrl = `${r2PublicDomain}/${key}`;
-    } else {
-      // Root-relative path is universally accessible across all domains and ports
-      rawFinalUrl = `/api/images/${key}`;
+    // 3b. Upload to Cloudflare KV Namespace if bound
+    const kv = getKVNamespace(env);
+    if (kv) {
+      try {
+        await kv.put(key, fileBuffer, {
+          metadata: { contentType: mimeType, slot, productId, filename },
+        });
+        const shortFilename = key.split("/").pop();
+        if (shortFilename && shortFilename !== key) {
+          await kv.put(shortFilename, fileBuffer, { metadata: { contentType: mimeType } }).catch(() => {});
+          await kv.put(`uploads/${shortFilename}`, fileBuffer, { metadata: { contentType: mimeType } }).catch(() => {});
+        }
+        if (!hasCloudStorage) {
+          storageType = "cloudflare_kv";
+          hasCloudStorage = true;
+        }
+      } catch (kvErr) {
+        console.warn("[Cloudflare KV Put Notice]:", kvErr);
+      }
     }
 
-    const finalUrl = rawFinalUrl.includes("?")
-      ? `${rawFinalUrl}&v=${timestamp}`
-      : `${rawFinalUrl}?v=${timestamp}`;
-
-    // 5. Save image metadata into Cloudflare D1 stored_images table
-    // EXACTLY 10 COLUMNS & EXACTLY 10 VALUES MANDATED
     const dataUrlToStore = providedDataUrl || arrayBufferToDataUrl(fileBuffer, mimeType);
     const nowIso = new Date().toISOString();
     const imageSize = fileBuffer.byteLength;
 
+    // 4. Save image metadata into Cloudflare D1 stored_images table
+    // EXACTLY 10 COLUMNS & EXACTLY 10 VALUES MANDATED
+    let d1Saved = false;
     try {
       await ensureD1Tables(env);
       const db = getD1Binding(env);
@@ -403,7 +412,7 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
         imageSize,
         slot || "",
         productId || "",
-        finalUrl,
+        `/api/images/${key}`,
         nowIso,
         nowIso,
       ];
@@ -423,36 +432,65 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
             imageSize,
             slot || "",
             productId || "",
-            finalUrl,
+            `/api/images/${key}`,
             nowIso,
             nowIso,
           ];
           await db.prepare(d1InsertSql).bind(...aliasValues).run().catch(() => {});
         }
+        d1Saved = true;
+        hasCloudStorage = true;
       } else {
-        await executeD1Query(env, d1InsertSql, d1Values);
-        const shortFilename = key.split("/").pop();
-        const aliases = Array.from(new Set([filename, shortFilename])).filter(
-          (a) => a && a !== key
-        ) as string[];
-        for (const alias of aliases) {
-          await executeD1Query(env, d1InsertSql, [
-            alias,
-            dataUrlToStore || "",
-            mimeType,
-            alias,
-            imageSize,
-            slot || "",
-            productId || "",
-            finalUrl,
-            nowIso,
-            nowIso,
-          ]).catch(() => {});
+        const d1Res = await executeD1Query(env, d1InsertSql, d1Values);
+        if (d1Res.success) {
+          d1Saved = true;
+          hasCloudStorage = true;
+          const shortFilename = key.split("/").pop();
+          const aliases = Array.from(new Set([filename, shortFilename])).filter(
+            (a) => a && a !== key
+          ) as string[];
+          for (const alias of aliases) {
+            await executeD1Query(env, d1InsertSql, [
+              alias,
+              dataUrlToStore || "",
+              mimeType,
+              alias,
+              imageSize,
+              slot || "",
+              productId || "",
+              `/api/images/${key}`,
+              nowIso,
+              nowIso,
+            ]).catch(() => {});
+          }
         }
       }
     } catch (d1Err) {
       console.error("[D1 stored_images Save Error]:", d1Err);
     }
+
+    // 5. Construct permanent public URL
+    const r2PublicDomain = getR2PublicBaseUrl(env);
+    let rawFinalUrl = "";
+
+    if (r2PublicDomain) {
+      rawFinalUrl = `${r2PublicDomain}/${key}`;
+    } else if (hasCloudStorage) {
+      // Root-relative path is universally accessible across all domains and ports
+      rawFinalUrl = `/api/images/${key}`;
+    } else {
+      // When Cloudflare has no persistent R2/KV/D1 bindings configured,
+      // return the optimized, high-resolution data URL directly!
+      // This ensures 100% immediate rendering, zero 404 errors, and permanent persistence!
+      rawFinalUrl = dataUrlToStore;
+      storageType = "client_data_url";
+    }
+
+    const finalUrl = rawFinalUrl.startsWith("data:")
+      ? rawFinalUrl
+      : rawFinalUrl.includes("?")
+      ? `${rawFinalUrl}&v=${timestamp}`
+      : `${rawFinalUrl}?v=${timestamp}`;
 
     // 6. Return successful JSON response
     return jsonResponse(

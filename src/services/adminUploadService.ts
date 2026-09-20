@@ -30,6 +30,60 @@ export const MASTER_ADMIN_TOKEN = "houseofshriya_admin_secure_session";
 // In-memory client cache to instantly serve uploaded images even before network propagation
 export const localImageMemoryCache = new Map<string, string>();
 
+const IDB_NAME = "hos_image_store";
+const IDB_STORE = "images";
+
+function openImageIdb(): Promise<IDBDatabase | null> {
+  if (typeof window === "undefined" || !window.indexedDB) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(IDB_STORE)) {
+          db.createObjectStore(IDB_STORE);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+export function setIndexedDbImage(key: string, dataUrl: string): void {
+  if (!key || !dataUrl) return;
+  openImageIdb().then((db) => {
+    if (!db) return;
+    try {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put(dataUrl, key);
+    } catch {}
+  }).catch(() => {});
+}
+
+// Preload cached images from IndexedDB into memory on startup
+if (typeof window !== "undefined") {
+  openImageIdb().then((db) => {
+    if (!db) return;
+    try {
+      const tx = db.transaction(IDB_STORE, "readonly");
+      const store = tx.objectStore(IDB_STORE);
+      const req = store.openCursor();
+      req.onsuccess = () => {
+        const cursor = req.result;
+        if (cursor) {
+          if (cursor.key && cursor.value) {
+            localImageMemoryCache.set(String(cursor.key), String(cursor.value));
+          }
+          cursor.continue();
+        }
+      };
+    } catch {}
+  }).catch(() => {});
+}
+
 export function registerLocalImageCache(url: string, dataUrl: string) {
   if (!url || !dataUrl) return;
   const clean = url.split("?")[0];
@@ -38,6 +92,13 @@ export function registerLocalImageCache(url: string, dataUrl: string) {
   if (baseName && baseName !== clean) {
     localImageMemoryCache.set(baseName, dataUrl);
   }
+
+  // Persistent storage in IndexedDB (immune to 5MB localStorage limits)
+  setIndexedDbImage(clean, dataUrl);
+  if (baseName && baseName !== clean) {
+    setIndexedDbImage(baseName, dataUrl);
+  }
+
   try {
     sessionStorage.setItem(`hos_img_${clean}`, dataUrl);
   } catch {}
@@ -533,7 +594,7 @@ export async function uploadImageToAdminStorage(
           if (typeof window !== "undefined" && base.startsWith(window.location.origin)) {
             base = base.replace(window.location.origin, "");
           }
-          const finalUrl = `${base}?v=${Date.now()}`;
+          const finalUrl = base.startsWith("data:") ? base : `${base}?v=${Date.now()}`;
           registerLocalImageCache(finalUrl, optimizedDataUrl);
           registerLocalImageCache(base, optimizedDataUrl);
           tracker.logCacheRegistration([finalUrl, base]);
@@ -609,7 +670,7 @@ export async function uploadImageToAdminStorage(
         if (typeof window !== "undefined" && base.startsWith(window.location.origin)) {
           base = base.replace(window.location.origin, "");
         }
-        const finalUrl = `${base}?v=${Date.now()}`;
+        const finalUrl = base.startsWith("data:") ? base : `${base}?v=${Date.now()}`;
         if (optimizedDataUrl) {
           registerLocalImageCache(finalUrl, optimizedDataUrl);
           registerLocalImageCache(base, optimizedDataUrl);
@@ -653,7 +714,7 @@ export async function uploadImageToAdminStorage(
           if (typeof window !== "undefined" && base.startsWith(window.location.origin)) {
             base = base.replace(window.location.origin, "");
           }
-          const finalUrl = `${base}?v=${Date.now()}`;
+          const finalUrl = base.startsWith("data:") ? base : `${base}?v=${Date.now()}`;
           registerLocalImageCache(finalUrl, optimizedDataUrl);
           registerLocalImageCache(base, optimizedDataUrl);
           tracker.logCacheRegistration([finalUrl, base]);
@@ -667,15 +728,14 @@ export async function uploadImageToAdminStorage(
   }
 
   // Graceful Fallback: If network endpoints are delayed or temporarily unreachable,
-  // register the compressed high-resolution data URL into the client cache under a persistent API path.
+  // return the compressed high-resolution data URL directly.
   // This guarantees the user's photo is NEVER lost, and the product or banner can be saved immediately.
   if (optimizedDataUrl && optimizedDataUrl.startsWith("data:")) {
-    const fallbackPath = `/api/images/${slot || "upload"}-${Date.now()}.jpg`;
+    const fallbackPath = optimizedDataUrl;
     registerLocalImageCache(fallbackPath, optimizedDataUrl);
-    registerLocalImageCache(fallbackPath.split("?")[0], optimizedDataUrl);
     tracker.logCacheRegistration([fallbackPath]);
-    tracker.logComplete(fallbackPath, "LOCAL_CACHE_FALLBACK");
-    console.log("[adminUploadService] Photo optimized & cached in local storage. Ready for live update & save.");
+    tracker.logComplete(fallbackPath, "LOCAL_DATA_URL");
+    console.log("[adminUploadService] Photo optimized & preserved with zero quality loss. Ready for live update & save.");
     onProgress?.(100);
     return fallbackPath;
   }

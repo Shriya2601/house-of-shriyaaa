@@ -38,9 +38,10 @@ import {
   uploadProductDataUrlToFirebase,
   uploadProductImageToFirebase,
   cleanupOldStorageImage,
+  getCachedProducts,
   withTimeout,
 } from "../../services/storeService";
-import { uploadImageToAdminStorage } from "../../services/adminUploadService";
+import { uploadImageToAdminStorage, registerLocalImageCache } from "../../services/adminUploadService";
 import { HeroSlide, Product, CategoryItem, SiteContent } from "../../types";
 import { compressImageFile } from "../../utils/imageUtils";
 
@@ -204,11 +205,15 @@ export default function AdminLivePreviewStudio({
       console.log("[StorageEngine] 1. LivePreviewStudio photo selected:", activeProduct.id, file.name);
       const { dataUrl, sizeText } = await compressImageFile(file, 1400, 0.85);
       console.log("[StorageEngine] 2. LivePreviewStudio photo compressed:", { sizeText, length: dataUrl.length });
+      registerLocalImageCache(dataUrl, dataUrl);
       
       // Upload directly to persistent storage
       let finalUrl = dataUrl;
       try {
         finalUrl = await uploadProductDataUrlToFirebase(dataUrl, activeProduct.id, "main");
+        if (finalUrl) {
+          registerLocalImageCache(finalUrl, dataUrl);
+        }
       } catch (uploadErr) {
         console.warn("[LivePreviewStudio] Product photo storage notice:", uploadErr);
       }
@@ -242,6 +247,9 @@ export default function AdminLivePreviewStudio({
             : activeProduct.colorVariants,
       };
 
+      // Instantly update products in preview
+      setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+
       const res = await saveProduct(updated);
       const savedProd = res?.product || updated;
       setProducts((prev) => prev.map((p) => (p.id === savedProd.id ? savedProd : p)));
@@ -251,11 +259,9 @@ export default function AdminLivePreviewStudio({
         cleanupOldStorageImage(oldImage, finalUrl).catch(() => {});
       }
 
-      const nextProds = products.map((p) => (p.id === updated.id ? updated : p));
-      setProducts(nextProds);
       setLastSavedTime(new Date().toLocaleTimeString());
       showToast(`Photo for "${updated.name}" updated & published live!`, "success");
-      notifyIframeRefresh(undefined, nextProds);
+      notifyIframeRefresh(undefined, getCachedProducts());
     } catch (err: any) {
       console.error("Product image upload failed:", err);
       const message = err instanceof Error ? err.message : String(err);
