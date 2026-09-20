@@ -148,6 +148,7 @@ export default function AdminBannerManager({
 
   const isDirtyRef = useRef(false);
   const saveInProgressRef = useRef(false);
+  const lastSavedTimeRef = useRef(0);
 
   slidesRef.current = slides;
 
@@ -174,6 +175,9 @@ export default function AdminBannerManager({
     if (isDirtyRef.current) return;
     if (uploadingIndex !== null) return;
     if (saveInProgressRef.current) return;
+
+    const incomingTime = siteContent?.updatedAt ? new Date(siteContent.updatedAt).getTime() : 0;
+    if (incomingTime && lastSavedTimeRef.current && incomingTime < lastSavedTimeRef.current) return;
 
     if (
       siteContent?.heroSlides &&
@@ -216,6 +220,9 @@ export default function AdminBannerManager({
       ) {
         return;
       }
+
+      const incomingTime = updatedContent.updatedAt ? new Date(updatedContent.updatedAt).getTime() : 0;
+      if (incomingTime && lastSavedTimeRef.current && incomingTime < lastSavedTimeRef.current) return;
 
       const incomingSlides = mergeSlides(
         updatedContent.heroSlides
@@ -298,6 +305,7 @@ export default function AdminBannerManager({
       slidesRef.current = cleanSlides;
       setSlides(cleanSlides);
 
+      lastSavedTimeRef.current = Date.now();
       isDirtyRef.current = false;
       setIsDirty(false);
       setAutoSaveStatus("saved");

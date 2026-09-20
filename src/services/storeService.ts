@@ -888,26 +888,29 @@ export function subscribeSiteContent(callback: (content: SiteContent) => void): 
       }
     } catch {}
 
-    // Fallback to static JSON file if server endpoint temporarily unavailable
-    try {
-      const staticRes = await fetch(`/data/siteContent.json?t=${Date.now()}`, {
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-      });
-      const sct = staticRes.headers.get("content-type") || "";
-      if (staticRes.ok && sct.includes("application/json")) {
-        const staticData = await staticRes.json();
-        if (staticData && typeof staticData === "object" && Object.keys(staticData).length > 0) {
-          const merged: SiteContent = { ...defaultSiteContent, ...staticData };
-          if (Array.isArray(staticData.heroSlides) && staticData.heroSlides.length > 0) {
-            merged.heroSlides = staticData.heroSlides;
-          } else if (!merged.heroSlides || merged.heroSlides.length === 0) {
-            merged.heroSlides = defaultSiteContent.heroSlides || [];
+    // Fallback to static JSON file ONLY if no local content has ever been saved
+    const cached = getCachedSiteContent();
+    if (!cached?.updatedAt && !currentContent?.updatedAt) {
+      try {
+        const staticRes = await fetch(`/data/siteContent.json?t=${Date.now()}`, {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+        });
+        const sct = staticRes.headers.get("content-type") || "";
+        if (staticRes.ok && sct.includes("application/json")) {
+          const staticData = await staticRes.json();
+          if (staticData && typeof staticData === "object" && Object.keys(staticData).length > 0) {
+            const merged: SiteContent = { ...defaultSiteContent, ...staticData };
+            if (Array.isArray(staticData.heroSlides) && staticData.heroSlides.length > 0) {
+              merged.heroSlides = staticData.heroSlides;
+            } else if (!merged.heroSlides || merged.heroSlides.length === 0) {
+              merged.heroSlides = defaultSiteContent.heroSlides || [];
+            }
+            applyContentIfNewer(merged, false);
           }
-          applyContentIfNewer(merged, false);
         }
-      }
-    } catch {}
+      } catch {}
+    }
   };
 
   // Immediate live fetch

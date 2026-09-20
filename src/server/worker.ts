@@ -138,7 +138,66 @@ function getD1(env: Env): any | null {
     const v = env[k];
     if (v && typeof v === "object" && typeof v.prepare === "function") return v;
   }
+
+  // REST API fallback if D1 credentials exist in env
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID || env.R2_ACCOUNT_ID;
+  const databaseId = env.CLOUDFLARE_D1_DATABASE_ID || env.D1_DATABASE_ID;
+  const apiToken = env.CLOUDFLARE_API_TOKEN || env.CLOUDFLARE_D1_API_TOKEN;
+
+  if (accountId && databaseId && apiToken) {
+    return {
+      prepare(sql: string) {
+        let boundParams: any[] = [];
+        const statement = {
+          bind(...params: any[]) {
+            boundParams = params;
+            return statement;
+          },
+          async run() {
+            return await executeD1Rest(accountId, databaseId, apiToken, sql, boundParams);
+          },
+          async all() {
+            const res = await executeD1Rest(accountId, databaseId, apiToken, sql, boundParams);
+            return { results: res.results || [] };
+          },
+          async first() {
+            const res = await executeD1Rest(accountId, databaseId, apiToken, sql, boundParams);
+            return res.results?.[0] || null;
+          },
+        };
+        return statement;
+      },
+    };
+  }
+
   return null;
+}
+
+async function executeD1Rest(
+  accountId: string,
+  databaseId: string,
+  apiToken: string,
+  sql: string,
+  params: any[] = []
+): Promise<{ results: any[]; success: boolean }> {
+  try {
+    const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ sql, params }),
+    });
+    const data = (await res.json()) as any;
+    if (data?.success && Array.isArray(data?.result) && data.result[0]?.results) {
+      return { results: data.result[0].results, success: true };
+    }
+    return { results: [], success: false };
+  } catch {
+    return { results: [], success: false };
+  }
 }
 
 function getR2(env: Env): any | null {
@@ -481,6 +540,28 @@ export default {
         } catch {}
       }
 
+      // 3b. Check Cloudflare KV
+      const kv = env.KV || env.kv || env.STORE_KV;
+      if (kv && typeof kv.get === "function") {
+        try {
+          const kvVal = (await kv.get(cleanKey)) || (await kv.get(filename)) || (await kv.get(`img:${cleanKey}`));
+          if (kvVal) {
+            const match = kvVal.match(/^data:([^;]+);base64,(.+)$/);
+            if (match) {
+              const buf = safeBase64ToArrayBuffer(match[2]);
+              return new Response(buf, {
+                status: 200,
+                headers: {
+                  "Content-Type": match[1] || "image/jpeg",
+                  "Cache-Control": "public, max-age=31536000, immutable",
+                  ...getCorsHeaders(request),
+                },
+              });
+            }
+          }
+        } catch {}
+      }
+
       // 4. Fallback to static asset from ASSETS binding
       if (env.ASSETS) {
         return await env.ASSETS.fetch(request);
@@ -633,6 +714,16 @@ export default {
           } catch {}
         }
 
+        const kv = env.KV || env.kv || env.STORE_KV;
+        if (kv && typeof kv.get === "function") {
+          try {
+            const val = await kv.get("site_content:main");
+            if (val) {
+              return jsonResponse(JSON.parse(val), 200, request);
+            }
+          } catch {}
+        }
+
         if (memorySiteContent) {
           return jsonResponse(memorySiteContent, 200, request);
         }
@@ -652,6 +743,13 @@ export default {
         try {
           const body = await request.json();
           memorySiteContent = body;
+
+          const kv = env.KV || env.kv || env.STORE_KV;
+          if (kv && typeof kv.put === "function") {
+            try {
+              await kv.put("site_content:main", JSON.stringify(body));
+            } catch {}
+          }
 
           if (db) {
             try {

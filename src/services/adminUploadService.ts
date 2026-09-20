@@ -29,6 +29,7 @@ export const MASTER_ADMIN_TOKEN = "houseofshriya_admin_secure_session";
 
 // In-memory client cache to instantly serve uploaded images even before network propagation
 export const localImageMemoryCache = new Map<string, string>();
+let lastServer405Timestamp = 0;
 
 const IDB_NAME = "hos_image_store";
 const IDB_STORE = "images";
@@ -589,13 +590,13 @@ export async function uploadImageToAdminStorage(
   // STAGE 3: TIER 1 - High-Speed Production Server Upload API (/api/admin/upload, /api/upload)
   // Authoritative, instant (<50ms), writes to disk and Firestore stored_images
   // =========================================================================
-  let serverReturned405 = false;
+  let serverReturned405 = Date.now() - lastServer405Timestamp < 25000;
 
   // Strategy A: JSON dataUrl POST
-  if (optimizedDataUrl && optimizedDataUrl.startsWith("data:")) {
+  if (!serverReturned405 && optimizedDataUrl && optimizedDataUrl.startsWith("data:")) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
       const uploadEndpoint = buildUploadUrl("/api/admin/upload", { slot, productId });
 
       tracker.logApiAttempt(uploadEndpoint, "POST (JSON dataUrl)", 3);
@@ -619,6 +620,7 @@ export async function uploadImageToAdminStorage(
 
       if (response.status === 405) {
         serverReturned405 = true;
+        lastServer405Timestamp = Date.now();
       }
 
       const contentType = response?.headers?.get("content-type") || "";
@@ -658,7 +660,7 @@ export async function uploadImageToAdminStorage(
   if (!serverReturned405) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
 
       const formData = new FormData();
       formData.append("file", uploadBlob, uploadFilename);
@@ -736,7 +738,7 @@ export async function uploadImageToAdminStorage(
   }
 
   // Strategy C: Fallback JSON POST to /api/upload
-  if (optimizedDataUrl && optimizedDataUrl.startsWith("data:")) {
+  if (!serverReturned405 && optimizedDataUrl && optimizedDataUrl.startsWith("data:")) {
     try {
       const altEndpoint = buildUploadUrl("/api/upload", { slot, productId });
       tracker.logApiAttempt(altEndpoint, "POST (Fallback JSON dataUrl)", 3);

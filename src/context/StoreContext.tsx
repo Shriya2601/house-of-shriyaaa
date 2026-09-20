@@ -406,56 +406,65 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           fetch(`/api/categories?t=${Date.now()}`, { cache: "no-store" }).catch(() => null),
         ]);
         if (contentRes && contentRes.ok) {
-          const content = await contentRes.json();
-          if (content && typeof content === "object") {
-            const cached = getCachedSiteContent();
-            const cachedTime = cached?.updatedAt ? new Date(cached.updatedAt).getTime() : 0;
-            const incomingTime = content.updatedAt ? new Date(content.updatedAt).getTime() : 0;
+          const ct = contentRes.headers.get("content-type") || "";
+          if (ct.includes("application/json")) {
+            const content = await contentRes.json().catch(() => null);
+            if (content && typeof content === "object") {
+              const cached = getCachedSiteContent();
+              const cachedTime = cached?.updatedAt ? new Date(cached.updatedAt).getTime() : 0;
+              const incomingTime = content.updatedAt ? new Date(content.updatedAt).getTime() : 0;
 
-            if (incomingTime >= cachedTime || !cachedTime) {
-              const merged: SiteContent = { ...cached, ...content };
-              if (
-                Array.isArray(cached?.heroSlides) &&
-                cached.heroSlides.length > 0 &&
-                (!Array.isArray(content.heroSlides) || content.heroSlides.length === 0)
-              ) {
-                merged.heroSlides = cached.heroSlides;
+              if (incomingTime >= cachedTime || !cachedTime) {
+                const merged: SiteContent = { ...cached, ...content };
+                if (
+                  Array.isArray(cached?.heroSlides) &&
+                  cached.heroSlides.length > 0 &&
+                  (!Array.isArray(content.heroSlides) || content.heroSlides.length === 0)
+                ) {
+                  merged.heroSlides = cached.heroSlides;
+                }
+                setSiteContent(merged);
+                cacheSiteContentLocally(merged);
               }
-              setSiteContent(merged);
-              cacheSiteContentLocally(merged);
             }
           }
         }
         if (prodsRes && prodsRes.ok) {
-          const prods = await prodsRes.json();
-          if (Array.isArray(prods)) {
-            const deleted = getLocallyDeletedIds("products");
-            const clean = prods.filter(
-              (p: any) =>
-                p &&
-                p.id &&
-                !deleted.has(p.id) &&
-                (!p.sku || !deleted.has(p.sku)) &&
-                (!p.name || !deleted.has(p.name))
-            );
-            setProducts(clean);
-            cacheProductsLocally(clean);
-            setLoadingCatalog(false);
+          const ct = prodsRes.headers.get("content-type") || "";
+          if (ct.includes("application/json")) {
+            const prods = await prodsRes.json().catch(() => null);
+            if (Array.isArray(prods)) {
+              const deleted = getLocallyDeletedIds("products");
+              const clean = prods.filter(
+                (p: any) =>
+                  p &&
+                  p.id &&
+                  !deleted.has(p.id) &&
+                  (!p.sku || !deleted.has(p.sku)) &&
+                  (!p.name || !deleted.has(p.name))
+              );
+              setProducts(clean);
+              cacheProductsLocally(clean);
+              setLoadingCatalog(false);
+            }
           }
         }
         if (catsRes && catsRes.ok) {
-          const cats = await catsRes.json();
-          if (Array.isArray(cats)) {
-            const deleted = getLocallyDeletedIds("categories");
-            const clean = cats.filter(
-              (c: any) =>
-                c &&
-                (!c.id || !deleted.has(c.id)) &&
-                (!c.slug || !deleted.has(c.slug)) &&
-                (!c.name || !deleted.has(c.name))
-            );
-            setCategories(clean);
-            cacheCategoriesLocally(clean);
+          const ct = catsRes.headers.get("content-type") || "";
+          if (ct.includes("application/json")) {
+            const cats = await catsRes.json().catch(() => null);
+            if (Array.isArray(cats)) {
+              const deleted = getLocallyDeletedIds("categories");
+              const clean = cats.filter(
+                (c: any) =>
+                  c &&
+                  (!c.id || !deleted.has(c.id)) &&
+                  (!c.slug || !deleted.has(c.slug)) &&
+                  (!c.name || !deleted.has(c.name))
+              );
+              setCategories(clean);
+              cacheCategoriesLocally(clean);
+            }
           }
         }
       } catch {}
