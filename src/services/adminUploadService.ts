@@ -394,14 +394,10 @@ export async function uploadImageToAdminStorage(
     throw new Error("No image data provided for upload.");
   }
 
-  // If already a permanent public HTTP URL or /uploads URL, return immediately without re-uploading
+  // If already a permanent public HTTP URL, /uploads, /api/images or relative URL, return immediately without re-uploading
   if (typeof fileOrDataUrl === "string") {
     const trimmed = fileOrDataUrl.trim();
-    if (
-      !trimmed.startsWith("data:") &&
-      !trimmed.startsWith("blob:") &&
-      (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("/uploads/"))
-    ) {
+    if (!trimmed.startsWith("data:") && !trimmed.startsWith("blob:")) {
       return trimmed;
     }
   }

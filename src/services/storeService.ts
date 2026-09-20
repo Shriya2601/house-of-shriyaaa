@@ -1402,7 +1402,11 @@ export function pausePolling(_seconds = 0): void {
 function applyImageCacheBuster(url: string | undefined): string {
   if (!url || typeof url !== "string") return "";
   const trimmed = url.trim();
-  if (trimmed.startsWith("/uploads/") || trimmed.startsWith("/public/uploads/")) {
+  if (
+    trimmed.startsWith("/uploads/") ||
+    trimmed.startsWith("/public/uploads/") ||
+    trimmed.startsWith("/api/images/")
+  ) {
     const cleanPath = trimmed.startsWith("/public/uploads/")
       ? trimmed.replace("/public", "")
       : trimmed;
@@ -1501,6 +1505,11 @@ export async function uploadProductImageToFirebase(
   }
   return uploadProductFileToFirebase(fileOrDataUrl, productId, type, onProgress);
 }
+
+// Clean aliases for modern Cloudflare R2 / D1 upload architecture
+export const uploadProductFile = uploadProductFileToFirebase;
+export const uploadProductDataUrl = uploadProductDataUrlToFirebase;
+export const uploadProductImage = uploadProductImageToFirebase;
 
 /**
  * Safely cleans up an old image if needed.

@@ -645,7 +645,7 @@ export default function AddProductModal({
       }
       onClose();
     } catch (err: any) {
-      console.error("[AddProductModal] Failed to save product to Firebase:", err);
+      console.error("[AddProductModal] Failed to save product:", err);
       const msg = err instanceof Error ? err.message : String(err);
       setError(`Failed to save product: ${msg}`);
     } finally {
@@ -829,7 +829,7 @@ export default function AddProductModal({
                           </span>
                         </div>
                         <p className="text-[11px] text-stone-500">
-                          {mainImageDetails?.size ? `Size: ${mainImageDetails.size}` : "Firebase Storage active"}
+                          {mainImageDetails?.size ? `Size: ${mainImageDetails.size}` : "Cloudflare Storage active"}
                         </p>
                         <p
                           className={`text-[10px] font-medium mt-0.5 ${
@@ -837,7 +837,7 @@ export default function AddProductModal({
                           }`}
                         >
                           {mainUploadState === "error"
-                            ? "⚠️ Photo not stored in Firebase Storage yet"
+                            ? "⚠️ Photo upload failed, please retry"
                             : "✓ Shown on boutique storefront and home grid"}
                         </p>
                       </div>
@@ -909,7 +909,7 @@ export default function AddProductModal({
                           Choose Image or Drag & Drop Main Suit Photo
                         </p>
                         <p className="text-[11px] text-stone-500">
-                          Phone photos, camera shots, JPG, PNG, WebP (auto-compressed for Firebase Storage)
+                          Phone photos, camera shots, JPG, PNG, WebP (auto-compressed for Cloudflare Storage)
                         </p>
                       </div>
                     </div>
@@ -1003,7 +1003,7 @@ export default function AddProductModal({
                             ? "Matches primary (click Change to set distinct hover photo)"
                             : hoverImageDetails?.size
                             ? `Size: ${hoverImageDetails.size}`
-                            : "Firebase Storage active"}
+                            : "Cloudflare Storage active"}
                         </p>
                       </div>
                       <div className="flex flex-col gap-1.5 shrink-0">

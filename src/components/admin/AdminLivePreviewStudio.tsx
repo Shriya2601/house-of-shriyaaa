@@ -196,11 +196,11 @@ export default function AdminLivePreviewStudio({
 
     setIsUploadingProductPhoto(true);
     try {
-      console.log("[FirebaseStorage] 1. LivePreviewStudio photo selected:", activeProduct.id, file.name);
+      console.log("[StorageEngine] 1. LivePreviewStudio photo selected:", activeProduct.id, file.name);
       const { dataUrl, sizeText } = await compressImageFile(file, 1400, 0.85);
-      console.log("[FirebaseStorage] 2. LivePreviewStudio photo compressed:", { sizeText, length: dataUrl.length });
+      console.log("[StorageEngine] 2. LivePreviewStudio photo compressed:", { sizeText, length: dataUrl.length });
       
-      // Upload directly to Firebase Storage
+      // Upload directly to persistent storage
       const finalUrl = await uploadProductDataUrlToFirebase(dataUrl, activeProduct.id, "main");
       const oldImage = activeProduct.image;
 
@@ -247,7 +247,7 @@ export default function AdminLivePreviewStudio({
       showToast(`Photo for "${updated.name}" updated & published live!`, "success");
       notifyIframeRefresh(undefined, nextProds);
     } catch (err: any) {
-      console.error("Firebase product image upload failed:", err);
+      console.error("Product image upload failed:", err);
       const message = err instanceof Error ? err.message : String(err);
       showToast("Photo upload failed: " + message, "error");
     } finally {
