@@ -23,7 +23,7 @@ import { useStore } from "../../context/StoreContext";
 import { saveSiteContent, withTimeout } from "../../services/storeService";
 import { uploadImageToAdminStorage, registerLocalImageCache } from "../../services/adminUploadService";
 import { HeroSlide } from "../../types";
-import { normalizeImageUrl } from "../../utils/imageUtils";
+import { normalizeImageUrl, handleImageError } from "../../utils/imageUtils";
 
 /* -------------------------------------------------------------------------- */
 /* DEFAULT SLIDES                                                            */
@@ -178,6 +178,7 @@ export default function AdminBannerManager({
 
     const incomingTime = siteContent?.updatedAt ? new Date(siteContent.updatedAt).getTime() : 0;
     if (incomingTime && lastSavedTimeRef.current && incomingTime < lastSavedTimeRef.current) return;
+    if (lastSavedTimeRef.current && Date.now() - lastSavedTimeRef.current < 15000 && incomingTime <= lastSavedTimeRef.current) return;
 
     if (
       siteContent?.heroSlides &&
@@ -185,13 +186,31 @@ export default function AdminBannerManager({
       siteContent.heroSlides.length > 0
     ) {
       const incomingSlides = mergeSlides(siteContent.heroSlides);
+      // Protect any recently uploaded custom slide image from being reverted to defaults
+      const protectedSlides = incomingSlides.map((incSlide, idx) => {
+        const curSlide = slidesRef.current?.[idx];
+        if (
+          curSlide?.image &&
+          !curSlide.image.includes("unsplash.com") &&
+          curSlide.image !== DEFAULT_SLIDES[idx % DEFAULT_SLIDES.length]?.image
+        ) {
+          if (
+            !incSlide.image ||
+            incSlide.image.includes("unsplash.com") ||
+            incSlide.image === DEFAULT_SLIDES[idx % DEFAULT_SLIDES.length]?.image
+          ) {
+            return { ...incSlide, image: curSlide.image };
+          }
+        }
+        return incSlide;
+      });
 
       setSlides((previous) => {
         if (
-          JSON.stringify(previous) !== JSON.stringify(incomingSlides)
+          JSON.stringify(previous) !== JSON.stringify(protectedSlides)
         ) {
-          slidesRef.current = incomingSlides;
-          return incomingSlides;
+          slidesRef.current = protectedSlides;
+          return protectedSlides;
         }
 
         return previous;
@@ -223,18 +242,37 @@ export default function AdminBannerManager({
 
       const incomingTime = updatedContent.updatedAt ? new Date(updatedContent.updatedAt).getTime() : 0;
       if (incomingTime && lastSavedTimeRef.current && incomingTime < lastSavedTimeRef.current) return;
+      if (lastSavedTimeRef.current && Date.now() - lastSavedTimeRef.current < 15000 && incomingTime <= lastSavedTimeRef.current) return;
 
       const incomingSlides = mergeSlides(
         updatedContent.heroSlides
       );
 
+      const protectedSlides = incomingSlides.map((incSlide, idx) => {
+        const curSlide = slidesRef.current?.[idx];
+        if (
+          curSlide?.image &&
+          !curSlide.image.includes("unsplash.com") &&
+          curSlide.image !== DEFAULT_SLIDES[idx % DEFAULT_SLIDES.length]?.image
+        ) {
+          if (
+            !incSlide.image ||
+            incSlide.image.includes("unsplash.com") ||
+            incSlide.image === DEFAULT_SLIDES[idx % DEFAULT_SLIDES.length]?.image
+          ) {
+            return { ...incSlide, image: curSlide.image };
+          }
+        }
+        return incSlide;
+      });
+
       setSlides((previous) => {
         if (
           JSON.stringify(previous) !==
-          JSON.stringify(incomingSlides)
+          JSON.stringify(protectedSlides)
         ) {
-          slidesRef.current = incomingSlides;
-          return incomingSlides;
+          slidesRef.current = protectedSlides;
+          return protectedSlides;
         }
 
         return previous;
@@ -1103,14 +1141,7 @@ export default function AdminBannerManager({
                   alt={slide.title}
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
-                  onError={(event) => {
-                    const target =
-                      event.currentTarget;
-
-                    if (target.src !== fallbackImage) {
-                      target.src = fallbackImage;
-                    }
-                  }}
+                  onError={(event) => handleImageError(event, fallbackImage)}
                 />
 
                 <span className="absolute bottom-0.5 right-0.5 bg-black/70 text-white font-mono text-[9px] px-1 rounded font-bold">
@@ -1306,14 +1337,7 @@ export default function AdminBannerManager({
                 alt={currentSlide.title}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                 referrerPolicy="no-referrer"
-                onError={(event) => {
-                  const target =
-                    event.currentTarget;
-
-                  if (target.src !== fallbackImage) {
-                    target.src = fallbackImage;
-                  }
-                }}
+                onError={(event) => handleImageError(event, fallbackImage)}
               />
 
               {/* Drag Overlay */}
@@ -1504,16 +1528,7 @@ export default function AdminBannerManager({
                     alt="Banner preview"
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
-                    onError={(event) => {
-                      const target =
-                        event.currentTarget;
-
-                      if (
-                        target.src !== fallbackImage
-                      ) {
-                        target.src = fallbackImage;
-                      }
-                    }}
+                    onError={(event) => handleImageError(event, fallbackImage)}
                   />
                 </div>
 

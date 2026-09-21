@@ -5,7 +5,7 @@ import React, {
   createElement,
 } from "react";
 import { useEditMode } from "./EditModeContext";
-import { normalizeImageUrl } from "../../utils/imageUtils";
+import { normalizeImageUrl, handleImageError, getLocalCachedImage } from "../../utils/imageUtils";
 
 interface CanvaEditableProps {
   id: string;
@@ -83,14 +83,13 @@ export default function CanvaEditable({
       referrerPolicy: "no-referrer",
       onError: (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
         const target = e.currentTarget;
-        if (target.src && target.src.includes("?v=") && !target.dataset.retried) {
-          target.dataset.retried = "true";
-          target.src = target.src.split("?")[0];
+        if (!target) return;
+        const cached = getLocalCachedImage(target.src);
+        if (cached && target.src !== cached) {
+          target.src = cached;
           return;
         }
-        if (!target.src.includes("unsplash.com")) {
-          target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=800&q=80";
-        }
+        handleImageError(e, "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=800&q=80");
         if (typeof (rest as any).onError === "function") {
           try {
             (rest as any).onError(e);

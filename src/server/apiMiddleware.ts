@@ -487,11 +487,11 @@ export const apiHandler: Connect.NextHandleFunction = async (req, res, next) => 
 
       // Fallback: If not found anywhere, evict from memory cache and return 404 with strict NO-CACHE
       memoryUploadsCache.delete(filename);
-      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Content-Type", "application/json");
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
       res.setHeader("Pragma", "no-cache");
       res.statusCode = 404;
-      res.end(TRANSPARENT_PNG);
+      res.end(JSON.stringify({ error: "Image not found", filename, lookupKey }));
       return;
     }
 

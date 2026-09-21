@@ -958,5 +958,101 @@
     "productId": null,
     "r2Url": null,
     "updatedAt": "2026-09-20T18:19:32.234Z"
+  },
+  "uploads_upload-1789961552385-1789961552385-2826_jpg": {
+    "key": "uploads/upload-1789961552385-1789961552385-2826.jpg",
+    "filename": "upload-1789961552385-1789961552385-2826.jpg",
+    "mimeType": "image/jpeg",
+    "size": 134,
+    "dataBase64": "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "slot": "test-slot",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-21T03:32:32.386Z"
+  },
+  "upload-1789961552385-1789961552385-2826_jpg": {
+    "key": "uploads/upload-1789961552385-1789961552385-2826.jpg",
+    "filename": "upload-1789961552385-1789961552385-2826.jpg",
+    "mimeType": "image/jpeg",
+    "size": 134,
+    "dataBase64": "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "slot": "test-slot",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-21T03:32:32.386Z"
+  },
+  "upload-1789961552385-1789961552385-2826": {
+    "key": "uploads/upload-1789961552385-1789961552385-2826.jpg",
+    "filename": "upload-1789961552385-1789961552385-2826.jpg",
+    "mimeType": "image/jpeg",
+    "size": 134,
+    "dataBase64": "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+    "slot": "test-slot",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-21T03:32:32.386Z"
+  },
+  "banners_hero-slide-1789962084847-14865_png": {
+    "key": "banners/hero-slide-1789962084847-14865.png",
+    "filename": "hero-slide-1789962084847-14865.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "hero-slide-1",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-21T03:41:24.848Z"
+  },
+  "hero-slide-1789962084847-14865_png": {
+    "key": "banners/hero-slide-1789962084847-14865.png",
+    "filename": "hero-slide-1789962084847-14865.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "hero-slide-1",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-21T03:41:24.848Z"
+  },
+  "hero-slide-1789962084847-14865": {
+    "key": "banners/hero-slide-1789962084847-14865.png",
+    "filename": "hero-slide-1789962084847-14865.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "hero-slide-1",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-21T03:41:24.848Z"
+  },
+  "uploads_hero-slide-1789962084847-14865_png": {
+    "key": "banners/hero-slide-1789962084847-14865.png",
+    "filename": "hero-slide-1789962084847-14865.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "hero-slide-1",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-21T03:41:24.848Z"
+  },
+  "uploads_hero-slide-1789962084847-14865_jpg": {
+    "key": "banners/hero-slide-1789962084847-14865.png",
+    "filename": "hero-slide-1789962084847-14865.png",
+    "mimeType": "image/png",
+    "size": 70,
+    "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "slot": "hero-slide-1",
+    "productId": null,
+    "r2Url": null,
+    "updatedAt": "2026-09-21T03:41:24.848Z"
   }
 }

@@ -448,6 +448,30 @@ export default {
           } catch {}
         }
 
+        // Multi-Tier Persistence 4: Cloudflare Cache API (caches.default) for instant edge response
+        try {
+          const cache = (caches as any)?.default;
+          if (cache) {
+            const cacheHeaders = {
+              "Content-Type": mimeType,
+              "Cache-Control": "public, max-age=31536000, immutable",
+              ...getCorsHeaders(request),
+            };
+            const origin = new URL(request.url).origin;
+            const cachePaths = [
+              `/api/images/${key}`,
+              `/api/images/${targetFilename}`,
+              `/uploads/${targetFilename}`,
+            ];
+            for (const cp of cachePaths) {
+              await cache.put(
+                new Request(`${origin}${cp}`, { method: "GET" }),
+                new Response(fileBuffer.slice(0), { headers: cacheHeaders })
+              );
+            }
+          }
+        } catch {}
+
         const publicUrl = r2PublicUrl || `/api/images/${key}?v=${timestamp}`;
 
         return jsonResponse(
@@ -562,12 +586,32 @@ export default {
         } catch {}
       }
 
+      // 3c. Check Cloudflare Cache API (caches.default)
+      try {
+        const cache = (caches as any)?.default;
+        if (cache) {
+          const matched = await cache.match(request);
+          if (matched) return matched;
+          const noQ = new URL(request.url);
+          noQ.search = "";
+          const matchedNoQ = await cache.match(new Request(noQ.toString(), { method: "GET" }));
+          if (matchedNoQ) return matchedNoQ;
+        }
+      } catch {}
+
       // 4. Fallback to static asset from ASSETS binding
       if (env.ASSETS) {
         return await env.ASSETS.fetch(request);
       }
 
-      return new Response("Image Not Found", { status: 404, headers: getCorsHeaders(request) });
+      return new Response(JSON.stringify({ error: "Image Not Found", key: cleanKey }), {
+        status: 404,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          ...getCorsHeaders(request),
+        },
+      });
     }
 
     // 5. Products Catalog Handler (/api/products)

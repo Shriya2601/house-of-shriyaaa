@@ -625,32 +625,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ) {
         if (Array.isArray(event.data.products)) {
           setProducts(event.data.products);
+          cacheProductsLocally(event.data.products);
         }
         if (Array.isArray(event.data.categories)) {
           setCategories(event.data.categories);
+          cacheCategoriesLocally(event.data.categories);
         }
-        if (event.data.siteContent) {
+        if (event.data.siteContent && typeof event.data.siteContent === "object") {
           setSiteContent(event.data.siteContent);
+          cacheSiteContentLocally(event.data.siteContent);
         }
-        // Also perform background API fetch to make sure disk state is synced
-        fetch(`/api/products?t=${Date.now()}`, { cache: "no-store" })
-          .then((r) => r.json())
-          .then((prods) => {
-            if (Array.isArray(prods) && prods.length > 0) setProducts(prods);
-          })
-          .catch(() => {});
-        fetch(`/api/site-content?t=${Date.now()}`, { cache: "no-store" })
-          .then((r) => r.json())
-          .then((content) => {
-            if (content && typeof content === "object") setSiteContent((prev) => ({ ...prev, ...content }));
-          })
-          .catch(() => {});
-        fetch(`/api/categories?t=${Date.now()}`, { cache: "no-store" })
-          .then((r) => r.json())
-          .then((cats) => {
-            if (Array.isArray(cats) && cats.length > 0) setCategories(cats);
-          })
-          .catch(() => {});
+        // Only fetch from API if full payload was not provided in message
+        if (!event.data.siteContent) {
+          fetch(`/api/site-content?t=${Date.now()}`, { cache: "no-store" })
+            .then((r) => r.json())
+            .then((content) => {
+              if (content && typeof content === "object") setSiteContent((prev) => ({ ...prev, ...content }));
+            })
+            .catch(() => {});
+        }
+        if (!Array.isArray(event.data.products)) {
+          fetch(`/api/products?t=${Date.now()}`, { cache: "no-store" })
+            .then((r) => r.json())
+            .then((prods) => {
+              if (Array.isArray(prods) && prods.length > 0) setProducts(prods);
+            })
+            .catch(() => {});
+        }
+        if (!Array.isArray(event.data.categories)) {
+          fetch(`/api/categories?t=${Date.now()}`, { cache: "no-store" })
+            .then((r) => r.json())
+            .then((cats) => {
+              if (Array.isArray(cats) && cats.length > 0) setCategories(cats);
+            })
+            .catch(() => {});
+        }
       }
       if (event.data.type === "products" && Array.isArray(event.data.data)) {
         setProducts(event.data.data);

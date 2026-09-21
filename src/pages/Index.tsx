@@ -3550,31 +3550,38 @@ export default function Index() {
           if (Array.isArray(event.data.categories)) {
             window.dispatchEvent(new CustomEvent("hos-categories-updated", { detail: event.data.categories }));
           }
-          // Fetch immediately from API without cache to guarantee live sync
-          fetch(`/api/products?t=${Date.now()}`, { cache: "no-store" })
-            .then((r) => r.json())
-            .then((prods) => {
-              if (Array.isArray(prods) && prods.length > 0) {
-                window.dispatchEvent(new CustomEvent("hos-catalog-updated", { detail: prods }));
-              }
-            })
-            .catch(() => {});
-          fetch(`/api/site-content?t=${Date.now()}`, { cache: "no-store" })
-            .then((r) => r.json())
-            .then((content) => {
-              if (content && typeof content === "object") {
-                window.dispatchEvent(new CustomEvent("hos-content-updated", { detail: content }));
-              }
-            })
-            .catch(() => {});
-          fetch(`/api/categories?t=${Date.now()}`, { cache: "no-store" })
-            .then((r) => r.json())
-            .then((cats) => {
-              if (Array.isArray(cats) && cats.length > 0) {
-                window.dispatchEvent(new CustomEvent("hos-categories-updated", { detail: cats }));
-              }
-            })
-            .catch(() => {});
+
+          // Only fetch from API if data was missing from the postMessage event
+          if (!Array.isArray(event.data.products)) {
+            fetch(`/api/products?t=${Date.now()}`, { cache: "no-store" })
+              .then((r) => r.json())
+              .then((prods) => {
+                if (Array.isArray(prods) && prods.length > 0) {
+                  window.dispatchEvent(new CustomEvent("hos-catalog-updated", { detail: prods }));
+                }
+              })
+              .catch(() => {});
+          }
+          if (!event.data.siteContent) {
+            fetch(`/api/site-content?t=${Date.now()}`, { cache: "no-store" })
+              .then((r) => r.json())
+              .then((content) => {
+                if (content && typeof content === "object") {
+                  window.dispatchEvent(new CustomEvent("hos-content-updated", { detail: content }));
+                }
+              })
+              .catch(() => {});
+          }
+          if (!Array.isArray(event.data.categories)) {
+            fetch(`/api/categories?t=${Date.now()}`, { cache: "no-store" })
+              .then((r) => r.json())
+              .then((cats) => {
+                if (Array.isArray(cats) && cats.length > 0) {
+                  window.dispatchEvent(new CustomEvent("hos-categories-updated", { detail: cats }));
+                }
+              })
+              .catch(() => {});
+          }
         }
       }
     };

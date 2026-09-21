@@ -4,6 +4,7 @@
  */
 import type React from "react";
 import { getLocalCachedImage, registerLocalImageCache } from "../services/adminUploadService";
+export { getLocalCachedImage, registerLocalImageCache };
 
 const KNOWN_KOMMODO_MAP: Record<string, string> = {
   "eA9kgNNZCuEDbWDBS8JI": "https://plain-apac-prod-public.komododecks.com/202609/05/eA9kgNNZCuEDbWDBS8JI/image.jpg",
@@ -74,20 +75,29 @@ export function handleImageError(
   fallback = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=800&q=80"
 ) {
   const target = e.currentTarget;
-  // If image has ?v= cache-busting timestamp, retry without ?v=
-  if (target.src && target.src.includes("?v=") && !target.dataset.retried) {
-    target.dataset.retried = "true";
-    target.src = target.src.split("?")[0];
-    return;
-  }
-  // Check if we have an immediate local/session cached dataUrl for this uploaded image
+  if (!target) return;
+
+  // 1. Check if we have an immediate local/session/IndexedDB cached dataUrl for this uploaded image
   const cached = getLocalCachedImage(target.src);
   if (cached && target.src !== cached) {
     target.src = cached;
     return;
   }
 
-  // Cloudflare R2 / D1 Recovery: If image was an /uploads/ URL that 404s on static CDN, fetch directly from /api/images/
+  // 2. If image has ?v= cache-busting timestamp, retry without ?v=
+  if (target.src && target.src.includes("?v=") && !target.dataset.retried) {
+    target.dataset.retried = "true";
+    const cleanSrc = target.src.split("?")[0];
+    const cachedClean = getLocalCachedImage(cleanSrc);
+    if (cachedClean && target.src !== cachedClean) {
+      target.src = cachedClean;
+      return;
+    }
+    target.src = cleanSrc;
+    return;
+  }
+
+  // 3. Cloudflare R2 / D1 Recovery: If image was an /uploads/ URL that 404s on static CDN, fetch directly from /api/images/
   if (target.src && (target.src.includes("/uploads/") || target.src.includes("uploads/")) && !target.dataset.apiRetried) {
     target.dataset.apiRetried = "true";
     try {
@@ -96,6 +106,11 @@ export function handleImageError(
       const filename = pathname.split("/").pop() || "";
 
       if (filename) {
+        const cachedByFilename = getLocalCachedImage(filename);
+        if (cachedByFilename) {
+          target.src = cachedByFilename;
+          return;
+        }
         const apiFallbackUrl = `/api/images/${filename}`;
         target.src = apiFallbackUrl;
         return;

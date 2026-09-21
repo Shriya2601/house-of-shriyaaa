@@ -513,9 +513,23 @@ export function initServerLiveSync() {
           cacheProductsLocally(normalized);
           window.dispatchEvent(new CustomEvent("hos-catalog-updated", { detail: normalized }));
         } else if ((payload.type === "site_content" || payload.type === "siteContent") && payload.data) {
-          const merged = { ...defaultSiteContent, ...payload.data };
-          if (Array.isArray(payload.data.heroSlides)) {
+          const currentCached = getCachedSiteContent();
+          const incomingTime = payload.data.updatedAt ? new Date(payload.data.updatedAt).getTime() : 0;
+          const cachedTime = currentCached?.updatedAt ? new Date(currentCached.updatedAt).getTime() : 0;
+          // Protect recent local save from being overwritten by older broadcast
+          if (incomingTime && cachedTime && incomingTime < cachedTime) {
+            return;
+          }
+          if (lastSiteContentSavedTimestamp > 0 && Date.now() - lastSiteContentSavedTimestamp < 15000) {
+            if (incomingTime <= lastSiteContentSavedTimestamp) {
+              return;
+            }
+          }
+          const merged = { ...defaultSiteContent, ...currentCached, ...payload.data };
+          if (Array.isArray(payload.data.heroSlides) && payload.data.heroSlides.length > 0) {
             merged.heroSlides = payload.data.heroSlides;
+          } else if (Array.isArray(currentCached?.heroSlides) && currentCached.heroSlides.length > 0) {
+            merged.heroSlides = currentCached.heroSlides;
           }
           if (Array.isArray(payload.data.features)) {
             merged.features = payload.data.features;
@@ -834,6 +848,13 @@ export function subscribeSiteContent(callback: (content: SiteContent) => void): 
     const incomingTime = incoming.updatedAt ? new Date(incoming.updatedAt).getTime() : 0;
     const currentTime = currentContent?.updatedAt ? new Date(currentContent.updatedAt).getTime() : 0;
 
+    // Protection window: If a local save happened in the last 15 seconds, reject any incoming content with older or equal timestamp
+    if (!force && lastSiteContentSavedTimestamp > 0 && Date.now() - lastSiteContentSavedTimestamp < 15000) {
+      if (incomingTime <= lastSiteContentSavedTimestamp) {
+        return;
+      }
+    }
+
     // Never overwrite populated heroSlides with empty array
     if (
       Array.isArray(currentContent?.heroSlides) &&
@@ -841,6 +862,27 @@ export function subscribeSiteContent(callback: (content: SiteContent) => void): 
       (!Array.isArray(incoming.heroSlides) || incoming.heroSlides.length === 0)
     ) {
       incoming.heroSlides = currentContent.heroSlides;
+    }
+
+    // If currentContent has valid heroSlide images from this session or local edits, preserve them if incoming has defaults or missing images
+    if (Array.isArray(currentContent?.heroSlides) && Array.isArray(incoming.heroSlides)) {
+      incoming.heroSlides = incoming.heroSlides.map((incSlide, idx) => {
+        const curSlide = currentContent?.heroSlides?.[idx];
+        if (
+          curSlide?.image &&
+          !curSlide.image.includes("unsplash.com") &&
+          curSlide.image !== defaultSiteContent.heroSlides?.[idx]?.image
+        ) {
+          if (
+            !incSlide.image ||
+            incSlide.image.includes("unsplash.com") ||
+            incSlide.image === defaultSiteContent.heroSlides?.[idx]?.image
+          ) {
+            return { ...incSlide, image: curSlide.image };
+          }
+        }
+        return incSlide;
+      });
     }
 
     // Never overwrite newer content with older stale data
@@ -1017,9 +1059,19 @@ export function subscribeSiteContent(callback: (content: SiteContent) => void): 
 }
 
 let isSavingSiteContent = false;
+let lastSiteContentSavedTimestamp = 0;
 let pendingSiteContentSaves: Partial<SiteContent>[] = [];
 
+export function getLastSiteContentSavedTime(): number {
+  return lastSiteContentSavedTimestamp;
+}
+
+export function isSiteContentSaving(): boolean {
+  return isSavingSiteContent;
+}
+
 export async function saveSiteContent(content: Partial<SiteContent>): Promise<SiteContent> {
+  lastSiteContentSavedTimestamp = Date.now();
   if (isSavingSiteContent) {
     pendingSiteContentSaves.push(content);
     // Return optimistic state immediately while queued
@@ -1057,21 +1109,6 @@ export async function saveSiteContent(content: Partial<SiteContent>): Promise<Si
         })
       );
       updated.heroSlides = uploadedSlides;
-
-      // Clean up any replaced slide images that are no longer referenced
-      if (Array.isArray(existing.heroSlides)) {
-        for (const oldSlide of existing.heroSlides) {
-          if (
-            oldSlide?.image &&
-            (oldSlide.image.startsWith("/uploads/") || oldSlide.image.startsWith("/api/images/"))
-          ) {
-            const isStillReferenced = updated.heroSlides.some((s) => s.image === oldSlide.image);
-            if (!isStillReferenced) {
-              deleteImageFromStorage(oldSlide.image).catch(() => {});
-            }
-          }
-        }
-      }
     }
     if (Array.isArray(sanitizedContent.features)) {
       updated.features = sanitizedContent.features;

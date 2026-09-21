@@ -43,7 +43,7 @@ import {
 } from "../../services/storeService";
 import { uploadImageToAdminStorage, registerLocalImageCache } from "../../services/adminUploadService";
 import { HeroSlide, Product, CategoryItem, SiteContent } from "../../types";
-import { compressImageFile } from "../../utils/imageUtils";
+import { compressImageFile, normalizeImageUrl, handleImageError } from "../../utils/imageUtils";
 
 interface AdminLivePreviewStudioProps {
   showToast: (msg: string, type?: "success" | "error" | "info") => void;
@@ -137,6 +137,13 @@ export default function AdminLivePreviewStudio({
     try {
       // 1. Compress image to high-quality responsive dataUrl
       const { dataUrl } = await compressImageFile(file, 1600, 0.88);
+      registerLocalImageCache(dataUrl, dataUrl);
+
+      // Optimistically update heroSlides immediately with dataUrl
+      const optimisticSlides = heroSlides.map((s, idx) =>
+        idx === selectedSlideIndex ? { ...s, image: dataUrl } : s
+      );
+      setSiteContent((prev) => ({ ...prev, heroSlides: optimisticSlides }));
 
       // 2. Upload to persistent production storage engine
       let finalUrl = dataUrl;
@@ -144,6 +151,9 @@ export default function AdminLivePreviewStudio({
         finalUrl = await uploadImageToAdminStorage(dataUrl, {
           slot: `hero-slide-${selectedSlideIndex + 1}`,
         });
+        if (finalUrl) {
+          registerLocalImageCache(finalUrl, dataUrl);
+        }
       } catch (uploadErr) {
         console.warn("[LivePreviewStudio] Banner storage notice:", uploadErr);
       }
@@ -154,11 +164,12 @@ export default function AdminLivePreviewStudio({
       );
 
       const saved = await saveSiteContent({ heroSlides: nextSlides });
-      setSiteContent((prev) => ({ ...prev, ...saved, heroSlides: nextSlides }));
+      const mergedContent = { ...siteContent, ...saved, heroSlides: nextSlides };
+      setSiteContent(mergedContent);
 
       setLastSavedTime(new Date().toLocaleTimeString());
       showToast(`Hero Slide 0${selectedSlideIndex + 1} photo updated & live!`, "success");
-      notifyIframeRefresh(saved);
+      notifyIframeRefresh(mergedContent, undefined, undefined, false);
     } catch (err: any) {
       showToast("Error uploading photo: " + (err.message || "Failed"), "error");
     } finally {
@@ -352,7 +363,8 @@ export default function AdminLivePreviewStudio({
   const notifyIframeRefresh = (
     freshContent?: SiteContent,
     freshProducts?: Product[],
-    freshCategories?: CategoryItem[]
+    freshCategories?: CategoryItem[],
+    hardReload = false
   ) => {
     const payloadContent = freshContent || siteContent;
     const payloadProducts = freshProducts || products;
@@ -371,13 +383,14 @@ export default function AdminLivePreviewStudio({
         );
       }
     } catch {}
-    // Also trigger key bump for guaranteed rerender
-    setPreviewKey(Date.now());
+    if (hardReload) {
+      setPreviewKey(Date.now());
+    }
   };
 
   const handleManualRefreshPreview = () => {
     setIsRefreshingPreview(true);
-    notifyIframeRefresh();
+    notifyIframeRefresh(undefined, undefined, undefined, true);
     setTimeout(() => {
       setIsRefreshingPreview(false);
       showToast("Live preview synchronized with current boutique data.", "info");
@@ -655,13 +668,10 @@ export default function AdminLivePreviewStudio({
                       >
                         <div className="w-full h-16 rounded-lg bg-stone-100 overflow-hidden relative">
                           <img
-                            src={slide.image}
+                            src={normalizeImageUrl(slide.image)}
                             alt={`Slide ${idx + 1}`}
                             className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src =
-                                "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=600&q=80";
-                            }}
+                            onError={handleImageError}
                           />
                           <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] font-mono px-1 rounded font-bold">
                             0{idx + 1}
@@ -686,9 +696,10 @@ export default function AdminLivePreviewStudio({
 
                   <div className="relative w-full h-44 rounded-xl overflow-hidden border border-[#d6ccc2] bg-stone-900 group">
                     <img
-                      src={currentSlide.image}
+                      src={normalizeImageUrl(currentSlide.image)}
                       alt={currentSlide.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={handleImageError}
                     />
                     <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2 opacity-95 group-hover:opacity-100 transition-opacity p-4">
                       <input
@@ -865,13 +876,10 @@ export default function AdminLivePreviewStudio({
                       >
                         <div className="w-full h-20 rounded-lg bg-stone-100 overflow-hidden relative mb-1">
                           <img
-                            src={p.image}
+                            src={normalizeImageUrl(p.image)}
                             alt={p.name}
                             className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src =
-                                "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=400&q=80";
-                            }}
+                            onError={handleImageError}
                           />
                         </div>
                         <span className="text-[10px] font-medium text-stone-800 line-clamp-1 block text-center">
@@ -888,9 +896,10 @@ export default function AdminLivePreviewStudio({
                     <div className="flex gap-3.5 items-start">
                       <div className="w-28 h-36 rounded-xl overflow-hidden border border-[#d6ccc2] bg-stone-900 shrink-0 relative group">
                         <img
-                          src={activeProduct.image}
+                          src={normalizeImageUrl(activeProduct.image)}
                           alt={activeProduct.name}
                           className="w-full h-full object-cover"
+                          onError={handleImageError}
                         />
                         <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center p-2 opacity-90 group-hover:opacity-100 transition-opacity">
                           <input
