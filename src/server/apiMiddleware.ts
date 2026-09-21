@@ -195,12 +195,18 @@ function writeCategories(categories: any[]): void {
 
 function readSiteContent(): any {
   const content = readDataFile("siteContent.json", {});
-  return content && typeof content === "object" ? content : {};
+  const safe = content && typeof content === "object" ? { ...content } : {};
+  if (!safe.updatedAt) {
+    safe.updatedAt = new Date().toISOString();
+  }
+  return safe;
 }
 
 function writeSiteContent(content: any): void {
-  syncDataFile("siteContent.json", content);
-  broadcastSseSync("site_content", content);
+  const safe = content && typeof content === "object" ? { ...content } : {};
+  safe.updatedAt = new Date().toISOString();
+  syncDataFile("siteContent.json", safe);
+  broadcastSseSync("site_content", safe);
 }
 
 function readBrandStyles(): any {
@@ -392,11 +398,13 @@ export const apiHandler: Connect.NextHandleFunction = async (req, res, next) => 
           path.resolve(process.cwd(), "public/uploads", rawFilename),
           path.resolve(process.cwd(), "public/uploads/banners", filename),
           path.resolve(process.cwd(), "public/uploads/products", filename),
+          path.resolve(process.cwd(), "public/uploads/uploads", filename),
           path.resolve(process.cwd(), "dist/uploads", subPath),
           path.resolve(process.cwd(), "dist/uploads", filename),
           path.resolve(process.cwd(), "dist/uploads", rawFilename),
           path.resolve(process.cwd(), "dist/uploads/banners", filename),
           path.resolve(process.cwd(), "dist/uploads/products", filename),
+          path.resolve(process.cwd(), "dist/uploads/uploads", filename),
           path.resolve(process.cwd(), "dist/client/uploads", subPath),
           path.resolve(process.cwd(), "dist/client/uploads", filename),
           path.resolve(process.cwd(), "dist/client/uploads", rawFilename),
@@ -1301,7 +1309,7 @@ export const apiHandler: Connect.NextHandleFunction = async (req, res, next) => 
               } else {
                 const cleanBase = filename.replace(/\.[a-z0-9]+$/i, "").replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 24) || "img";
                 targetFilename = `${cleanBase}-${timestamp}-${rand}.${ext}`;
-                key = `uploads/${targetFilename}`;
+                key = targetFilename;
               }
 
               const result = await persistImagePermanently({

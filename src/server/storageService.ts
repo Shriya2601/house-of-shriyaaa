@@ -5,50 +5,69 @@ import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } fro
 // In-memory binary cache for instant zero-latency serving
 const memoryBinaryCache = new Map<string, { buffer: Buffer; mimeType: string; timestamp: number }>();
 
-// Persistent file-backed store for image records (survives restarts without Firebase)
-const STORED_IMAGES_FILE = path.resolve(process.cwd(), "public/data/stored_images.json");
+// Persistent file-backed store paths (mirrored across public, src, and dist to survive restarts)
+const STORED_IMAGES_TARGETS = [
+  path.resolve(process.cwd(), "public/data/stored_images.json"),
+  path.resolve(process.cwd(), "src/data/stored_images.json"),
+  path.resolve(process.cwd(), "dist/data/stored_images.json"),
+  path.resolve(process.cwd(), "dist/client/data/stored_images.json"),
+];
 
 let storedImagesCache: Record<string, any> | null = null;
-let saveStoredImagesTimer: NodeJS.Timeout | null = null;
 
 function readStoredImagesMap(): Record<string, any> {
-  if (storedImagesCache) return storedImagesCache;
-  try {
-    if (fs.existsSync(STORED_IMAGES_FILE)) {
-      const raw = fs.readFileSync(STORED_IMAGES_FILE, "utf-8");
-      storedImagesCache = JSON.parse(raw);
-    } else {
-      storedImagesCache = {};
+  if (storedImagesCache && Object.keys(storedImagesCache).length > 0) return storedImagesCache;
+
+  let merged: Record<string, any> = {};
+  for (const target of STORED_IMAGES_TARGETS) {
+    if (fs.existsSync(target)) {
+      try {
+        const raw = fs.readFileSync(target, "utf-8");
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          merged = { ...merged, ...parsed };
+        }
+      } catch (err) {
+        console.warn(`[Storage Service] Error reading ${target}:`, err);
+      }
     }
-  } catch {
-    storedImagesCache = {};
   }
+
+  storedImagesCache = merged;
   return storedImagesCache;
 }
 
-function scheduleSaveStoredImages(): void {
-  if (saveStoredImagesTimer) return;
-  saveStoredImagesTimer = setTimeout(() => {
-    saveStoredImagesTimer = null;
-    try {
-      if (storedImagesCache) {
-        const dir = path.dirname(STORED_IMAGES_FILE);
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        const compact = JSON.stringify(storedImagesCache);
-        fs.writeFile(STORED_IMAGES_FILE, compact, "utf-8", (err) => {
-          if (err) console.warn("[Storage Service] Stored images write error:", err);
-        });
+export function saveStoredImagesSync(): void {
+  try {
+    if (!storedImagesCache) return;
+    const jsonStr = JSON.stringify(storedImagesCache);
+
+    for (const target of STORED_IMAGES_TARGETS) {
+      try {
+        if (target.includes("dist/client") && !fs.existsSync(path.resolve(process.cwd(), "dist/client"))) {
+          continue;
+        }
+        if (target.includes("dist/data") && !fs.existsSync(path.resolve(process.cwd(), "dist"))) {
+          continue;
+        }
+        const dir = path.dirname(target);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(target, jsonStr, "utf-8");
+      } catch (err) {
+        console.warn(`[Storage Service] Stored images sync warning for ${target}:`, err);
       }
-    } catch (err) {
-      console.warn("[Storage Service] Stored images save error:", err);
     }
-  }, 100);
+  } catch (err) {
+    console.warn("[Storage Service] Stored images save error:", err);
+  }
 }
 
 function writeStoredImagesRecord(id: string, record: any): void {
   const map = readStoredImagesMap();
   map[id] = record;
-  scheduleSaveStoredImages();
+  saveStoredImagesSync();
 }
 
 // Lazy-initialized Cloudflare R2 / S3 client
@@ -162,13 +181,28 @@ export function isAuthorizedAdminRequest(
 
 /**
  * Writes an image buffer to disk in public/uploads and dist/uploads.
+ * Normalizes leading slashes and redundant "uploads/" prefixes, and writes
+ * both the structured path and flat basename so that any URL format resolves cleanly.
  */
-export function writeImageToDisk(filename: string, buffer: Buffer): string[] {
+export function writeImageToDisk(filenameOrPath: string, buffer: Buffer): string[] {
+  if (!filenameOrPath || !buffer) return [];
+  const clean = filenameOrPath
+    .replace(/^[\/\\]+/, "")
+    .replace(/^(?:public[\/\\])?uploads[\/\\]+/, "")
+    .replace(/^uploads[\/\\]+/, "");
+  const baseName = path.basename(clean);
+
   const targets = [
-    path.resolve(process.cwd(), "public/uploads", filename),
-    path.resolve(process.cwd(), "dist/uploads", filename),
-    path.resolve(process.cwd(), "dist/client/uploads", filename),
+    path.resolve(process.cwd(), "public/uploads", clean),
+    path.resolve(process.cwd(), "dist/uploads", clean),
+    path.resolve(process.cwd(), "dist/client/uploads", clean),
   ];
+
+  if (baseName && baseName !== clean) {
+    targets.push(path.resolve(process.cwd(), "public/uploads", baseName));
+    targets.push(path.resolve(process.cwd(), "dist/uploads", baseName));
+    targets.push(path.resolve(process.cwd(), "dist/client/uploads", baseName));
+  }
 
   const written: string[] = [];
 
@@ -286,7 +320,7 @@ export async function persistImagePermanently(params: {
     for (const id of cleanDocIds) {
       map[id] = payload;
     }
-    scheduleSaveStoredImages();
+    saveStoredImagesSync();
   } catch (storeErr) {
     console.warn("[Storage Service] Stored image record error:", storeErr);
   }
@@ -506,10 +540,131 @@ export async function deleteImagePermanently(
       }
     }
     if (modified) {
-      fs.writeFileSync(STORED_IMAGES_FILE, JSON.stringify(storedMap, null, 2), "utf-8");
+      saveStoredImagesSync();
     }
   } catch {}
 
   return { success: true, purged: filename };
+}
+
+/**
+ * Hydrates persistent storage:
+ * 1. Restores any missing images in public/uploads from stored_images.json
+ * 2. Indexes existing images on disk into stored_images.json so they persist across container restarts
+ * 3. Syncs stored_images.json to both public/data and src/data
+ */
+export function hydrateStorage(): void {
+  try {
+    const map = readStoredImagesMap();
+    let restoredCount = 0;
+    let indexedCount = 0;
+
+    // 1. Restore any missing files from stored_images.json to disk
+    for (const [docId, record] of Object.entries(map)) {
+      if (!record || typeof record !== "object") continue;
+      const b64 = record.dataBase64 || (record.dataUrl?.match(/^data:[^;]+;base64,(.+)$/)?.[1]);
+      if (!b64) continue;
+
+      const filename = record.filename || `${docId}.jpg`;
+      const key = record.key || filename;
+      const cleanFilename = filename
+        .replace(/^[\/\\]+/, "")
+        .replace(/^(?:public[\/\\])?uploads[\/\\]+/, "")
+        .replace(/^uploads[\/\\]+/, "");
+
+      const targetPath = path.resolve(process.cwd(), "public/uploads", cleanFilename);
+
+      if (!fs.existsSync(targetPath)) {
+        try {
+          const buf = Buffer.from(b64, "base64");
+          writeImageToDisk(cleanFilename, buf);
+          if (key && key !== cleanFilename) {
+            writeImageToDisk(key, buf);
+          }
+          const mime = record.mimeType || "image/jpeg";
+          memoryBinaryCache.set(cleanFilename, { buffer: buf, mimeType: mime, timestamp: Date.now() });
+          memoryBinaryCache.set(path.basename(cleanFilename), { buffer: buf, mimeType: mime, timestamp: Date.now() });
+          restoredCount++;
+        } catch {}
+      }
+    }
+
+    // 2. Scan public/uploads for existing files not yet in stored_images.json and index them
+    function walkDir(dir: string): string[] {
+      let results: string[] = [];
+      if (!fs.existsSync(dir)) return results;
+      const list = fs.readdirSync(dir);
+      for (const item of list) {
+        if (item === ".gitkeep" || item.includes("test10m")) continue;
+        const full = path.join(dir, item);
+        try {
+          const stat = fs.statSync(full);
+          if (stat.isDirectory()) {
+            results = results.concat(walkDir(full));
+          } else if (stat.isFile() && stat.size < 10 * 1024 * 1024) {
+            results.push(full);
+          }
+        } catch {}
+      }
+      return results;
+    }
+
+    const uploadsDir = path.resolve(process.cwd(), "public/uploads");
+    const existingFiles = walkDir(uploadsDir);
+
+    for (const filePath of existingFiles) {
+      const relPath = path.relative(uploadsDir, filePath).replace(/\\/g, "/");
+      const filename = path.basename(filePath);
+      const nameWithoutExt = filename.replace(/\.[a-zA-Z0-9]+$/, "");
+      const docId = relPath.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const filenameDocId = filename.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+      if (!map[docId] && !map[filenameDocId]) {
+        try {
+          const buffer = fs.readFileSync(filePath);
+          const ext = path.extname(filename).toLowerCase();
+          let mimeType = "image/jpeg";
+          if (ext === ".png") mimeType = "image/png";
+          else if (ext === ".webp") mimeType = "image/webp";
+          else if (ext === ".gif") mimeType = "image/gif";
+          else if (ext === ".svg") mimeType = "image/svg+xml";
+
+          const base64Data = buffer.toString("base64");
+          const payload = {
+            key: relPath,
+            filename,
+            mimeType,
+            size: buffer.length,
+            dataBase64: base64Data,
+            updatedAt: new Date().toISOString(),
+          };
+
+          const cleanDocIds = Array.from(
+            new Set([
+              docId,
+              filenameDocId,
+              nameWithoutExt.replace(/[^a-zA-Z0-9_-]/g, "_"),
+              `uploads_${filenameDocId}`,
+              `uploads_${nameWithoutExt.replace(/[^a-zA-Z0-9_-]/g, "_")}_jpg`,
+            ])
+          );
+
+          for (const id of cleanDocIds) {
+            map[id] = payload;
+          }
+          indexedCount++;
+        } catch {}
+      }
+    }
+
+    if (indexedCount > 0 || restoredCount > 0) {
+      saveStoredImagesSync();
+      console.log(
+        `[Storage Service] Hydration complete: ${restoredCount} restored from JSON, ${indexedCount} newly indexed into stored_images.json`
+      );
+    }
+  } catch (err) {
+    console.warn("[Storage Service] Hydration notice:", err);
+  }
 }
 

@@ -2,9 +2,17 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import { apiHandler } from "./src/server/apiMiddleware";
+import { hydrateStorage } from "./src/server/storageService";
 import { createServer as createViteServer } from "vite";
 
 async function startServer() {
+  // Hydrate persistent images across container restarts and sync JSON records
+  try {
+    hydrateStorage();
+  } catch (err) {
+    console.warn("[Server] Storage hydration warning:", err);
+  }
+
   const app = express();
   const PORT = 3000;
 
