@@ -12,43 +12,10 @@
   "footerNote": "© House of Shriya. Made for your forever wardrobe.",
   "heroSlides": [
     {
-      "eyebrow": "NEW ARRIVAL / Contemporary Pret",
       "number": "01",
-      "collection": "Festive Pret & Luxury Coordinates",
-      "title": "Sage & Turquoise Handcrafted Printed Kurti Set",
-      "description": "Handcrafted pure cotton-silk designer kurti tunic with traditional geometric & floral motifs, embroidered contrast placket, and effortless artisanal elegance.",
-      "image": "/uploads/hero-slide-1-turq.jpg",
-      "season": "SUMMER/FESTIVE 2026",
-      "caption": "Bespoke Printed Kurti with Embroidered Placket",
-      "mood": "Turquoise, Sage & Terracotta",
-      "ctaText": "Explore Collection",
-      "ctaTarget": "catalog-section"
-    },
-    {
-      "eyebrow": "Timeless Indian elegance",
-      "number": "02",
-      "collection": "The Festive Edit",
-      "title": "Grace, Weave in Every Detail",
-      "description": "Elegant mint-green embroidered salwar suit paired with a soft peach striped dupatta featuring delicate scalloped detailing. A graceful choice for festive occasions, family gatherings, and elegant everyday wear.",
-      "image": "/uploads/hero-slide-2-mint.jpg",
-      "season": "ROYAL HERITAGE 2026",
-      "caption": "Pastels • Delicate Embroidery • Effortless Grace",
-      "mood": "Antique Zari & Handlooms",
-      "ctaText": "Discover Unstitched",
-      "ctaTarget": "catalog-section"
-    },
-    {
-      "eyebrow": "Daily Chic",
-      "number": "03",
-      "collection": "Wrap yourself in the soft elegance of muted pistachio tones and hand-painted watercolor florals, finished with",
-      "title": "Grace in Every Print",
-      "description": "PURE MUL CHANDERI JACOARD WITH HANDWORK WITH ORGANZA EMBROIDERY FOR SLEEVES AND CONTRAST PIPING WITH LACE ON DAMAN.",
-      "image": "/uploads/hero-slide-3-chanderi.jpg",
-      "season": "DAILY CHIC 2026",
-      "caption": "Printed Organza Dupatta Set in Sage & Pastel Rose",
-      "mood": "Pastel Silks & Easy Linens",
-      "ctaText": "Shop Daily Chic",
-      "ctaTarget": "catalog-section"
+      "title": "Test",
+      "subtitle": "Test",
+      "image": "/uploads/hero-slide-1789994226408-56355.gif"
     }
   ],
   "features": [
@@ -104,5 +71,5 @@
   "upiScannerUrl": "/uploads/house-of-shriya-official-upi-scanner.png",
   "upiId": "shriyapusha01-1@okaxis",
   "upiMerchantName": "House of Shriya",
-  "updatedAt": "2026-09-21T03:38:58.161Z"
+  "updatedAt": "2026-09-21T12:39:38.229Z"
 }

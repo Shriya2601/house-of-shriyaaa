@@ -1150,6 +1150,7 @@ export async function saveSiteContent(content: Partial<SiteContent>): Promise<Si
     try {
       const res = await fetch("/api/site-content", {
         method: "POST",
+        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
           "x-admin-token": adminToken,
@@ -1160,8 +1161,9 @@ export async function saveSiteContent(content: Partial<SiteContent>): Promise<Si
       });
       if (res.ok) {
         const json = await res.json().catch(() => null);
-        if (json?.content && typeof json.content === "object") {
-          Object.assign(updated, json.content);
+        const fresh = json?.siteContent || json?.content;
+        if (fresh && typeof fresh === "object") {
+          Object.assign(updated, fresh);
           cacheSiteContentLocally(updated);
         }
       }

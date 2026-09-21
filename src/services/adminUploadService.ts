@@ -246,7 +246,9 @@ export function getAdminAuthToken(): string {
 }
 
 /**
- * Builds upload endpoint URL with query parameters including master token and AI Studio token
+ * Builds upload endpoint URL with query parameters including master token.
+ * Note: Never append __aistudio_auth_token to query params as NGINX will 302-redirect
+ * the request, causing browsers to drop the POST body and switch to GET.
  */
 function buildUploadUrl(
   path: string,
@@ -258,11 +260,6 @@ function buildUploadUrl(
   if (options.productId) url += `&productId=${encodeURIComponent(options.productId)}`;
   if (options.key) url += `&imageKey=${encodeURIComponent(options.key)}`;
   if (options.filename) url += `&filename=${encodeURIComponent(options.filename)}`;
-
-  const aiToken = getAiStudioAuthToken();
-  if (aiToken) {
-    url += `&__aistudio_auth_token=${encodeURIComponent(aiToken)}`;
-  }
   return url;
 }
 
@@ -304,10 +301,9 @@ export async function deleteImageFromStorage(imageUrlOrKey: string): Promise<boo
   } catch {}
 
   // 2. Call backend delete endpoints
-  const token = getAiStudioAuthToken();
   const authHeaders: Record<string, string> = {
     "x-admin-token": MASTER_ADMIN_TOKEN,
-    authorization: `Bearer ${token || MASTER_ADMIN_TOKEN}`,
+    authorization: `Bearer ${MASTER_ADMIN_TOKEN}`,
     "x-admin-key": MASTER_ADMIN_TOKEN,
   };
 
@@ -320,6 +316,7 @@ export async function deleteImageFromStorage(imageUrlOrKey: string): Promise<boo
     try {
       const res = await fetch(ep, {
         method: "DELETE",
+        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
           ...authHeaders,
@@ -347,6 +344,11 @@ export async function optimizeImageForUpload(
 ): Promise<string> {
   if (typeof window === "undefined") {
     return typeof source === "string" ? source : "";
+  }
+
+  // Fast path: If already a compressed data URL under 2MB, return immediately without canvas re-compression
+  if (typeof source === "string" && source.startsWith("data:image/") && source.length < 2000000) {
+    return source;
   }
 
   return new Promise((resolve) => {
@@ -595,13 +597,14 @@ export async function uploadImageToAdminStorage(
   if (optimizedDataUrl && optimizedDataUrl.startsWith("data:")) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000);
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
       const uploadEndpoint = buildUploadUrl("/api/admin/upload", { slot, productId });
 
       tracker.logApiAttempt(uploadEndpoint, "POST (JSON dataUrl)", 3);
 
       const response = await fetch(uploadEndpoint, {
         method: "POST",
+        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
           ...authHeaders,
@@ -653,7 +656,7 @@ export async function uploadImageToAdminStorage(
   // Strategy B: Multipart FormData upload
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     const formData = new FormData();
     formData.append("file", uploadBlob, uploadFilename);
@@ -666,6 +669,7 @@ export async function uploadImageToAdminStorage(
 
     let formResponse = await fetch(uploadEndpoint, {
       method: "POST",
+      credentials: "same-origin",
       headers: authHeaders,
       body: formData,
       signal: controller.signal,
@@ -685,6 +689,7 @@ export async function uploadImageToAdminStorage(
         tracker.logApiAttempt(altEndpoint, "POST (Multipart FormData Fallback)", 3);
         formResponse = await fetch(altEndpoint, {
           method: "POST",
+          credentials: "same-origin",
           headers: authHeaders,
           body: formData,
         });
@@ -733,11 +738,12 @@ export async function uploadImageToAdminStorage(
   if (optimizedDataUrl && optimizedDataUrl.startsWith("data:")) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000);
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
       const altEndpoint = buildUploadUrl("/api/upload", { slot, productId });
       tracker.logApiAttempt(altEndpoint, "POST (Fallback JSON dataUrl)", 3);
       const altResponse = await fetch(altEndpoint, {
         method: "POST",
+        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
           ...authHeaders,
