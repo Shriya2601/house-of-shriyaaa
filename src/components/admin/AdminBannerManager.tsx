@@ -793,7 +793,7 @@ export default function AdminBannerManager({
       let finalImageUrl = compressedDataUrl;
 
       try {
-        finalImageUrl = await uploadImageToAdminStorage(compressedDataUrl, {
+        finalImageUrl = await uploadImageToAdminStorage(file || compressedDataUrl, {
           slot: `hero-slide-${targetIndex + 1}`,
         });
         if (finalImageUrl) {

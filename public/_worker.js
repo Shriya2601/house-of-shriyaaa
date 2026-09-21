@@ -81,7 +81,55 @@ function getD1(env) {
     const v = env[k];
     if (v && typeof v === "object" && typeof v.prepare === "function") return v;
   }
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID || env.R2_ACCOUNT_ID;
+  const databaseId = env.CLOUDFLARE_D1_DATABASE_ID || env.D1_DATABASE_ID;
+  const apiToken = env.CLOUDFLARE_API_TOKEN || env.CLOUDFLARE_D1_API_TOKEN;
+  if (accountId && databaseId && apiToken) {
+    return {
+      prepare(sql) {
+        let boundParams = [];
+        const statement = {
+          bind(...params) {
+            boundParams = params;
+            return statement;
+          },
+          async run() {
+            return await executeD1Rest(accountId, databaseId, apiToken, sql, boundParams);
+          },
+          async all() {
+            const res = await executeD1Rest(accountId, databaseId, apiToken, sql, boundParams);
+            return { results: res.results || [] };
+          },
+          async first() {
+            const res = await executeD1Rest(accountId, databaseId, apiToken, sql, boundParams);
+            return res.results?.[0] || null;
+          }
+        };
+        return statement;
+      }
+    };
+  }
   return null;
+}
+async function executeD1Rest(accountId, databaseId, apiToken, sql, params = []) {
+  try {
+    const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ sql, params })
+    });
+    const data = await res.json();
+    if (data?.success && Array.isArray(data?.result) && data.result[0]?.results) {
+      return { results: data.result[0].results, success: true };
+    }
+    return { results: [], success: false };
+  } catch {
+    return { results: [], success: false };
+  }
 }
 function getR2(env) {
   if (!env || typeof env !== "object") return null;
@@ -283,6 +331,29 @@ var worker_default = {
           } catch {
           }
         }
+        try {
+          const cache = caches?.default;
+          if (cache) {
+            const cacheHeaders = {
+              "Content-Type": mimeType,
+              "Cache-Control": "public, max-age=31536000, immutable",
+              ...getCorsHeaders(request)
+            };
+            const origin = new URL(request.url).origin;
+            const cachePaths = [
+              `/api/images/${key}`,
+              `/api/images/${targetFilename}`,
+              `/uploads/${targetFilename}`
+            ];
+            for (const cp of cachePaths) {
+              await cache.put(
+                new Request(`${origin}${cp}`, { method: "GET" }),
+                new Response(fileBuffer.slice(0), { headers: cacheHeaders })
+              );
+            }
+          }
+        } catch {
+        }
         const publicUrl = r2PublicUrl || `/api/images/${key}?v=${timestamp}`;
         return jsonResponse(
           {
@@ -360,10 +431,50 @@ var worker_default = {
         } catch {
         }
       }
+      const kv = env.KV || env.kv || env.STORE_KV;
+      if (kv && typeof kv.get === "function") {
+        try {
+          const kvVal = await kv.get(cleanKey) || await kv.get(filename) || await kv.get(`img:${cleanKey}`);
+          if (kvVal) {
+            const match = kvVal.match(/^data:([^;]+);base64,(.+)$/);
+            if (match) {
+              const buf = safeBase64ToArrayBuffer(match[2]);
+              return new Response(buf, {
+                status: 200,
+                headers: {
+                  "Content-Type": match[1] || "image/jpeg",
+                  "Cache-Control": "public, max-age=31536000, immutable",
+                  ...getCorsHeaders(request)
+                }
+              });
+            }
+          }
+        } catch {
+        }
+      }
+      try {
+        const cache = caches?.default;
+        if (cache) {
+          const matched = await cache.match(request);
+          if (matched) return matched;
+          const noQ = new URL(request.url);
+          noQ.search = "";
+          const matchedNoQ = await cache.match(new Request(noQ.toString(), { method: "GET" }));
+          if (matchedNoQ) return matchedNoQ;
+        }
+      } catch {
+      }
       if (env.ASSETS) {
         return await env.ASSETS.fetch(request);
       }
-      return new Response("Image Not Found", { status: 404, headers: getCorsHeaders(request) });
+      return new Response(JSON.stringify({ error: "Image Not Found", key: cleanKey }), {
+        status: 404,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          ...getCorsHeaders(request)
+        }
+      });
     }
     if (pathname === "/api/products") {
       const db = getD1(env);
@@ -481,6 +592,16 @@ var worker_default = {
           } catch {
           }
         }
+        const kv = env.KV || env.kv || env.STORE_KV;
+        if (kv && typeof kv.get === "function") {
+          try {
+            const val = await kv.get("site_content:main");
+            if (val) {
+              return jsonResponse(JSON.parse(val), 200, request);
+            }
+          } catch {
+          }
+        }
         if (memorySiteContent) {
           return jsonResponse(memorySiteContent, 200, request);
         }
@@ -498,6 +619,13 @@ var worker_default = {
         try {
           const body = await request.json();
           memorySiteContent = body;
+          const kv = env.KV || env.kv || env.STORE_KV;
+          if (kv && typeof kv.put === "function") {
+            try {
+              await kv.put("site_content:main", JSON.stringify(body));
+            } catch {
+            }
+          }
           if (db) {
             try {
               await ensureD1(env);

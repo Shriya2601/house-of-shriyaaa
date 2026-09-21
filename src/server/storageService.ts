@@ -8,26 +8,47 @@ const memoryBinaryCache = new Map<string, { buffer: Buffer; mimeType: string; ti
 // Persistent file-backed store for image records (survives restarts without Firebase)
 const STORED_IMAGES_FILE = path.resolve(process.cwd(), "public/data/stored_images.json");
 
+let storedImagesCache: Record<string, any> | null = null;
+let saveStoredImagesTimer: NodeJS.Timeout | null = null;
+
 function readStoredImagesMap(): Record<string, any> {
+  if (storedImagesCache) return storedImagesCache;
   try {
     if (fs.existsSync(STORED_IMAGES_FILE)) {
       const raw = fs.readFileSync(STORED_IMAGES_FILE, "utf-8");
-      return JSON.parse(raw);
+      storedImagesCache = JSON.parse(raw);
+    } else {
+      storedImagesCache = {};
     }
-  } catch {}
-  return {};
+  } catch {
+    storedImagesCache = {};
+  }
+  return storedImagesCache;
+}
+
+function scheduleSaveStoredImages(): void {
+  if (saveStoredImagesTimer) return;
+  saveStoredImagesTimer = setTimeout(() => {
+    saveStoredImagesTimer = null;
+    try {
+      if (storedImagesCache) {
+        const dir = path.dirname(STORED_IMAGES_FILE);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const compact = JSON.stringify(storedImagesCache);
+        fs.writeFile(STORED_IMAGES_FILE, compact, "utf-8", (err) => {
+          if (err) console.warn("[Storage Service] Stored images write error:", err);
+        });
+      }
+    } catch (err) {
+      console.warn("[Storage Service] Stored images save error:", err);
+    }
+  }, 100);
 }
 
 function writeStoredImagesRecord(id: string, record: any): void {
-  try {
-    const dir = path.dirname(STORED_IMAGES_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const map = readStoredImagesMap();
-    map[id] = record;
-    fs.writeFileSync(STORED_IMAGES_FILE, JSON.stringify(map, null, 2), "utf-8");
-  } catch (err) {
-    console.warn("[Storage Service] Stored images write error:", err);
-  }
+  const map = readStoredImagesMap();
+  map[id] = record;
+  scheduleSaveStoredImages();
 }
 
 // Lazy-initialized Cloudflare R2 / S3 client
@@ -255,16 +276,17 @@ export async function persistImagePermanently(params: {
       mimeType,
       size: buffer.length,
       dataBase64: base64Data,
-      dataUrl: `data:${mimeType};base64,${base64Data}`,
       slot: slot || null,
       productId: productId || null,
       r2Url: r2PublicUrl || null,
       updatedAt: new Date().toISOString(),
     };
 
+    const map = readStoredImagesMap();
     for (const id of cleanDocIds) {
-      writeStoredImagesRecord(id, payload);
+      map[id] = payload;
     }
+    scheduleSaveStoredImages();
   } catch (storeErr) {
     console.warn("[Storage Service] Stored image record error:", storeErr);
   }

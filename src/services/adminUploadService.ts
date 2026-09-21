@@ -588,15 +588,14 @@ export async function uploadImageToAdminStorage(
 
   // =========================================================================
   // STAGE 3: TIER 1 - High-Speed Production Server Upload API (/api/admin/upload, /api/upload)
-  // Authoritative, instant (<50ms), writes to disk and Firestore stored_images
+  // Authoritative, instant (<500ms), writes to disk and Firestore stored_images
   // =========================================================================
-  let serverReturned405 = Date.now() - lastServer405Timestamp < 25000;
 
   // Strategy A: JSON dataUrl POST
-  if (!serverReturned405 && optimizedDataUrl && optimizedDataUrl.startsWith("data:")) {
+  if (optimizedDataUrl && optimizedDataUrl.startsWith("data:")) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
       const uploadEndpoint = buildUploadUrl("/api/admin/upload", { slot, productId });
 
       tracker.logApiAttempt(uploadEndpoint, "POST (JSON dataUrl)", 3);
@@ -617,11 +616,6 @@ export async function uploadImageToAdminStorage(
 
       clearTimeout(timeoutId);
       onProgress?.(80);
-
-      if (response.status === 405) {
-        serverReturned405 = true;
-        lastServer405Timestamp = Date.now();
-      }
 
       const contentType = response?.headers?.get("content-type") || "";
       const isJsonOk =
@@ -656,90 +650,90 @@ export async function uploadImageToAdminStorage(
     }
   }
 
-  // Strategy B: Multipart FormData upload (skip if server strictly 405)
-  if (!serverReturned405) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
+  // Strategy B: Multipart FormData upload
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
 
-      const formData = new FormData();
-      formData.append("file", uploadBlob, uploadFilename);
-      formData.append("image", uploadBlob, uploadFilename);
-      formData.append("slot", slot);
-      if (productId) formData.append("productId", productId);
+    const formData = new FormData();
+    formData.append("file", uploadBlob, uploadFilename);
+    formData.append("image", uploadBlob, uploadFilename);
+    formData.append("slot", slot);
+    if (productId) formData.append("productId", productId);
 
-      const uploadEndpoint = buildUploadUrl("/api/admin/upload", { slot, productId });
-      tracker.logApiAttempt(uploadEndpoint, "POST (Multipart FormData)", 3);
+    const uploadEndpoint = buildUploadUrl("/api/admin/upload", { slot, productId });
+    tracker.logApiAttempt(uploadEndpoint, "POST (Multipart FormData)", 3);
 
-      let formResponse = await fetch(uploadEndpoint, {
-        method: "POST",
-        headers: authHeaders,
-        body: formData,
-        signal: controller.signal,
-      });
+    let formResponse = await fetch(uploadEndpoint, {
+      method: "POST",
+      headers: authHeaders,
+      body: formData,
+      signal: controller.signal,
+    });
 
-      let contentType = formResponse?.headers?.get("content-type") || "";
-      let isFormOk =
-        formResponse &&
-        formResponse.ok &&
-        !formResponse.url.includes("__cookie_check") &&
-        !contentType.includes("text/html");
+    let contentType = formResponse?.headers?.get("content-type") || "";
+    let isFormOk =
+      formResponse &&
+      formResponse.ok &&
+      !formResponse.url.includes("__cookie_check") &&
+      !contentType.includes("text/html");
 
-      // If primary endpoint failed, attempt secondary endpoint /api/upload
-      if (!isFormOk && formResponse?.status !== 405) {
-        try {
-          const altEndpoint = buildUploadUrl("/api/upload", { slot, productId });
-          tracker.logApiAttempt(altEndpoint, "POST (Multipart FormData Fallback)", 3);
-          formResponse = await fetch(altEndpoint, {
-            method: "POST",
-            headers: authHeaders,
-            body: formData,
-          });
-          contentType = formResponse?.headers?.get("content-type") || "";
-          isFormOk =
-            formResponse &&
-            formResponse.ok &&
-            !formResponse.url.includes("__cookie_check") &&
-            !contentType.includes("text/html");
-        } catch (altErr) {
-          tracker.logApiError("/api/upload", altErr);
-        }
+    // If primary endpoint failed, attempt secondary endpoint /api/upload
+    if (!isFormOk) {
+      try {
+        const altEndpoint = buildUploadUrl("/api/upload", { slot, productId });
+        tracker.logApiAttempt(altEndpoint, "POST (Multipart FormData Fallback)", 3);
+        formResponse = await fetch(altEndpoint, {
+          method: "POST",
+          headers: authHeaders,
+          body: formData,
+        });
+        contentType = formResponse?.headers?.get("content-type") || "";
+        isFormOk =
+          formResponse &&
+          formResponse.ok &&
+          !formResponse.url.includes("__cookie_check") &&
+          !contentType.includes("text/html");
+      } catch (altErr) {
+        tracker.logApiError("/api/upload", altErr);
       }
-
-      clearTimeout(timeoutId);
-      onProgress?.(85);
-
-      if (isFormOk) {
-        const result: AdminUploadResponse = await formResponse.json();
-        if (result.success && result.url) {
-          tracker.logApiResult(uploadEndpoint, formResponse.status, contentType, result);
-          onProgress?.(100);
-          let base = result.url.split("?")[0];
-          if (typeof window !== "undefined" && base.startsWith(window.location.origin)) {
-            base = base.replace(window.location.origin, "");
-          }
-          const finalUrl = base.startsWith("data:") ? base : `${base}?v=${Date.now()}`;
-          if (optimizedDataUrl) {
-            registerLocalImageCache(finalUrl, optimizedDataUrl);
-            registerLocalImageCache(base, optimizedDataUrl);
-            setIndexedDbImage(finalUrl, optimizedDataUrl);
-            setIndexedDbImage(base, optimizedDataUrl);
-          }
-          tracker.logCacheRegistration([finalUrl, base]);
-          tracker.logComplete(finalUrl, "SERVER_API");
-          return finalUrl;
-        }
-      } else {
-        tracker.logApiResult(uploadEndpoint, formResponse?.status || 0, contentType);
-      }
-    } catch (formErr: any) {
-      tracker.logApiError("/api/admin/upload", formErr);
     }
+
+    clearTimeout(timeoutId);
+    onProgress?.(85);
+
+    if (isFormOk) {
+      const result: AdminUploadResponse = await formResponse.json();
+      if (result.success && result.url) {
+        tracker.logApiResult(uploadEndpoint, formResponse.status, contentType, result);
+        onProgress?.(100);
+        let base = result.url.split("?")[0];
+        if (typeof window !== "undefined" && base.startsWith(window.location.origin)) {
+          base = base.replace(window.location.origin, "");
+        }
+        const finalUrl = base.startsWith("data:") ? base : `${base}?v=${Date.now()}`;
+        if (optimizedDataUrl) {
+          registerLocalImageCache(finalUrl, optimizedDataUrl);
+          registerLocalImageCache(base, optimizedDataUrl);
+          setIndexedDbImage(finalUrl, optimizedDataUrl);
+          setIndexedDbImage(base, optimizedDataUrl);
+        }
+        tracker.logCacheRegistration([finalUrl, base]);
+        tracker.logComplete(finalUrl, "SERVER_API");
+        return finalUrl;
+      }
+    } else {
+      tracker.logApiResult(uploadEndpoint, formResponse?.status || 0, contentType);
+    }
+  } catch (formErr: any) {
+    tracker.logApiError("/api/admin/upload", formErr);
   }
 
   // Strategy C: Fallback JSON POST to /api/upload
-  if (!serverReturned405 && optimizedDataUrl && optimizedDataUrl.startsWith("data:")) {
+  if (optimizedDataUrl && optimizedDataUrl.startsWith("data:")) {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
       const altEndpoint = buildUploadUrl("/api/upload", { slot, productId });
       tracker.logApiAttempt(altEndpoint, "POST (Fallback JSON dataUrl)", 3);
       const altResponse = await fetch(altEndpoint, {
@@ -753,7 +747,9 @@ export async function uploadImageToAdminStorage(
           slot,
           productId,
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       const altContentType = altResponse?.headers?.get("content-type") || "";
       if (altResponse && altResponse.ok && !altContentType.includes("text/html")) {
