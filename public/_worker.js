@@ -343,7 +343,10 @@ var worker_default = {
             const cachePaths = [
               `/api/images/${key}`,
               `/api/images/${targetFilename}`,
-              `/uploads/${targetFilename}`
+              `/uploads/${key}`,
+              `/uploads/${targetFilename}`,
+              `/uploads/banners/${targetFilename}`,
+              `/uploads/products/${targetFilename}`
             ];
             for (const cp of cachePaths) {
               await cache.put(
@@ -354,7 +357,14 @@ var worker_default = {
           }
         } catch {
         }
-        const publicUrl = r2PublicUrl || `/api/images/${key}?v=${timestamp}`;
+        let publicUrl = "";
+        if (r2PublicUrl) {
+          publicUrl = r2PublicUrl;
+        } else if (storageType === "d1") {
+          publicUrl = `/uploads/${targetFilename}?v=${timestamp}`;
+        } else {
+          publicUrl = resolvedDataUrl;
+        }
         return jsonResponse(
           {
             success: true,
@@ -381,7 +391,7 @@ var worker_default = {
       const rawKey = pathname.replace(/^\/api\/images\//, "").replace(/^\/uploads\//, "");
       const cleanKey = decodeURIComponent(rawKey.split("?")[0]);
       const filename = cleanKey.split("/").pop() || cleanKey;
-      const mem = memoryImages.get(cleanKey) || memoryImages.get(filename);
+      const mem = memoryImages.get(cleanKey) || memoryImages.get(filename) || memoryImages.get(pathname);
       if (mem) {
         return new Response(mem.buffer, {
           status: 200,
@@ -395,7 +405,7 @@ var worker_default = {
       const r2 = getR2(env);
       if (r2) {
         try {
-          const r2Obj = await r2.get(cleanKey) || await r2.get(`uploads/${cleanKey}`) || await r2.get(`banners/${cleanKey}`);
+          const r2Obj = await r2.get(cleanKey) || await r2.get(filename) || await r2.get(`uploads/${cleanKey}`) || await r2.get(`uploads/${filename}`) || await r2.get(`banners/${filename}`) || await r2.get(`products/${filename}`);
           if (r2Obj) {
             return new Response(r2Obj.body, {
               status: 200,
@@ -413,7 +423,7 @@ var worker_default = {
       if (db) {
         try {
           await ensureD1(env);
-          const row = await db.prepare("SELECT data_url, mime_type FROM stored_images WHERE key = ? OR filename = ? LIMIT 1").bind(cleanKey, filename).first();
+          const row = await db.prepare("SELECT data_url, mime_type FROM stored_images WHERE key = ? OR filename = ? OR key LIKE ? OR filename LIKE ? LIMIT 1").bind(cleanKey, filename, `%${filename}%`, `%${filename}%`).first();
           if (row && row.data_url) {
             const match = row.data_url.match(/^data:([^;]+);base64,(.+)$/);
             if (match) {
@@ -434,7 +444,7 @@ var worker_default = {
       const kv = env.KV || env.kv || env.STORE_KV;
       if (kv && typeof kv.get === "function") {
         try {
-          const kvVal = await kv.get(cleanKey) || await kv.get(filename) || await kv.get(`img:${cleanKey}`);
+          const kvVal = await kv.get(cleanKey) || await kv.get(filename) || await kv.get(`img:${cleanKey}`) || await kv.get(`img:${filename}`);
           if (kvVal) {
             const match = kvVal.match(/^data:([^;]+);base64,(.+)$/);
             if (match) {
@@ -461,11 +471,58 @@ var worker_default = {
           noQ.search = "";
           const matchedNoQ = await cache.match(new Request(noQ.toString(), { method: "GET" }));
           if (matchedNoQ) return matchedNoQ;
+          const origin = new URL(request.url).origin;
+          const altPaths = [
+            `${origin}/uploads/${cleanKey}`,
+            `${origin}/uploads/${filename}`,
+            `${origin}/api/images/${cleanKey}`,
+            `${origin}/api/images/${filename}`
+          ];
+          for (const ap of altPaths) {
+            const altMatch = await cache.match(new Request(ap, { method: "GET" }));
+            if (altMatch) return altMatch;
+          }
         }
       } catch {
       }
       if (env.ASSETS) {
-        return await env.ASSETS.fetch(request);
+        const candidatePaths = [
+          pathname,
+          `/uploads/${cleanKey}`,
+          `/uploads/${filename}`,
+          `/uploads/banners/${filename}`,
+          `/uploads/products/${filename}`,
+          `/uploads/uploads/${filename}`,
+          `/${cleanKey}`,
+          `/${filename}`
+        ];
+        for (const cp of candidatePaths) {
+          try {
+            const assetReq = new Request(new URL(cp, request.url), {
+              method: "GET",
+              headers: request.headers
+            });
+            const assetRes = await env.ASSETS.fetch(assetReq);
+            if (assetRes && assetRes.status === 200) {
+              const resHeaders = new Headers(assetRes.headers);
+              const ext = filename.split(".").pop()?.toLowerCase();
+              if (ext === "png") resHeaders.set("Content-Type", "image/png");
+              else if (ext === "webp") resHeaders.set("Content-Type", "image/webp");
+              else if (ext === "jpg" || ext === "jpeg") resHeaders.set("Content-Type", "image/jpeg");
+              else if (ext === "gif") resHeaders.set("Content-Type", "image/gif");
+              else if (ext === "svg") resHeaders.set("Content-Type", "image/svg+xml");
+              resHeaders.set("Cache-Control", "public, max-age=31536000, immutable");
+              for (const [k, v] of Object.entries(getCorsHeaders(request))) {
+                resHeaders.set(k, v);
+              }
+              return new Response(assetRes.body, {
+                status: 200,
+                headers: resHeaders
+              });
+            }
+          } catch {
+          }
+        }
       }
       return new Response(JSON.stringify({ error: "Image Not Found", key: cleanKey }), {
         status: 404,
@@ -540,7 +597,7 @@ var worker_default = {
               ).bind(
                 id,
                 updatedProduct.name || "Untitled Product",
-                Number(updatedProduct.price) || 0,
+                typeof updatedProduct.price === "number" ? updatedProduct.price : parseFloat(String(updatedProduct.price || "").replace(/[^0-9.]/g, "")) || 0,
                 updatedProduct.category || "General",
                 updatedProduct.inStock !== false ? 1 : 0,
                 updatedProduct.image || "",
