@@ -461,7 +461,10 @@ export default {
             const cachePaths = [
               `/api/images/${key}`,
               `/api/images/${targetFilename}`,
+              `/uploads/${key}`,
               `/uploads/${targetFilename}`,
+              `/uploads/banners/${targetFilename}`,
+              `/uploads/products/${targetFilename}`,
             ];
             for (const cp of cachePaths) {
               await cache.put(
@@ -472,7 +475,17 @@ export default {
           }
         } catch {}
 
-        const publicUrl = r2PublicUrl || `/api/images/${key}?v=${timestamp}`;
+        let publicUrl = "";
+        if (r2PublicUrl) {
+          publicUrl = r2PublicUrl;
+        } else if (storageType === "d1") {
+          publicUrl = `/uploads/${targetFilename}?v=${timestamp}`;
+        } else {
+          // If neither R2 nor D1 was connected, return the optimized Base64 dataUrl directly.
+          // This guarantees that whether the user is on Cloudflare Pages, local dev, or external CDN,
+          // the image displays in the admin and on the live site permanently with ZERO chance of 404!
+          publicUrl = resolvedDataUrl;
+        }
 
         return jsonResponse(
           {
@@ -507,7 +520,7 @@ export default {
       const filename = cleanKey.split("/").pop() || cleanKey;
 
       // 1. Check in-memory isolate cache
-      const mem = memoryImages.get(cleanKey) || memoryImages.get(filename);
+      const mem = memoryImages.get(cleanKey) || memoryImages.get(filename) || memoryImages.get(pathname);
       if (mem) {
         return new Response(mem.buffer, {
           status: 200,
@@ -523,7 +536,13 @@ export default {
       const r2 = getR2(env);
       if (r2) {
         try {
-          const r2Obj = (await r2.get(cleanKey)) || (await r2.get(`uploads/${cleanKey}`)) || (await r2.get(`banners/${cleanKey}`));
+          const r2Obj =
+            (await r2.get(cleanKey)) ||
+            (await r2.get(filename)) ||
+            (await r2.get(`uploads/${cleanKey}`)) ||
+            (await r2.get(`uploads/${filename}`)) ||
+            (await r2.get(`banners/${filename}`)) ||
+            (await r2.get(`products/${filename}`));
           if (r2Obj) {
             return new Response(r2Obj.body, {
               status: 200,
@@ -543,8 +562,8 @@ export default {
         try {
           await ensureD1(env);
           const row: any = await db
-            .prepare("SELECT data_url, mime_type FROM stored_images WHERE key = ? OR filename = ? LIMIT 1")
-            .bind(cleanKey, filename)
+            .prepare("SELECT data_url, mime_type FROM stored_images WHERE key = ? OR filename = ? OR key LIKE ? OR filename LIKE ? LIMIT 1")
+            .bind(cleanKey, filename, `%${filename}%`, `%${filename}%`)
             .first();
 
           if (row && row.data_url) {
@@ -568,7 +587,11 @@ export default {
       const kv = env.KV || env.kv || env.STORE_KV;
       if (kv && typeof kv.get === "function") {
         try {
-          const kvVal = (await kv.get(cleanKey)) || (await kv.get(filename)) || (await kv.get(`img:${cleanKey}`));
+          const kvVal =
+            (await kv.get(cleanKey)) ||
+            (await kv.get(filename)) ||
+            (await kv.get(`img:${cleanKey}`)) ||
+            (await kv.get(`img:${filename}`));
           if (kvVal) {
             const match = kvVal.match(/^data:([^;]+);base64,(.+)$/);
             if (match) {
@@ -596,12 +619,59 @@ export default {
           noQ.search = "";
           const matchedNoQ = await cache.match(new Request(noQ.toString(), { method: "GET" }));
           if (matchedNoQ) return matchedNoQ;
+
+          const origin = new URL(request.url).origin;
+          const altPaths = [
+            `${origin}/uploads/${cleanKey}`,
+            `${origin}/uploads/${filename}`,
+            `${origin}/api/images/${cleanKey}`,
+            `${origin}/api/images/${filename}`,
+          ];
+          for (const ap of altPaths) {
+            const altMatch = await cache.match(new Request(ap, { method: "GET" }));
+            if (altMatch) return altMatch;
+          }
         }
       } catch {}
 
-      // 4. Fallback to static asset from ASSETS binding
+      // 4. Fallback to static asset from ASSETS binding (e.g. public/uploads/* or dist/uploads/*)
       if (env.ASSETS) {
-        return await env.ASSETS.fetch(request);
+        const candidatePaths = [
+          pathname,
+          `/uploads/${cleanKey}`,
+          `/uploads/${filename}`,
+          `/uploads/banners/${filename}`,
+          `/uploads/products/${filename}`,
+          `/uploads/uploads/${filename}`,
+          `/${cleanKey}`,
+          `/${filename}`,
+        ];
+        for (const cp of candidatePaths) {
+          try {
+            const assetReq = new Request(new URL(cp, request.url), {
+              method: "GET",
+              headers: request.headers,
+            });
+            const assetRes = await env.ASSETS.fetch(assetReq);
+            if (assetRes && assetRes.status === 200) {
+              const resHeaders = new Headers(assetRes.headers);
+              const ext = filename.split(".").pop()?.toLowerCase();
+              if (ext === "png") resHeaders.set("Content-Type", "image/png");
+              else if (ext === "webp") resHeaders.set("Content-Type", "image/webp");
+              else if (ext === "jpg" || ext === "jpeg") resHeaders.set("Content-Type", "image/jpeg");
+              else if (ext === "gif") resHeaders.set("Content-Type", "image/gif");
+              else if (ext === "svg") resHeaders.set("Content-Type", "image/svg+xml");
+              resHeaders.set("Cache-Control", "public, max-age=31536000, immutable");
+              for (const [k, v] of Object.entries(getCorsHeaders(request))) {
+                resHeaders.set(k, v);
+              }
+              return new Response(assetRes.body, {
+                status: 200,
+                headers: resHeaders,
+              });
+            }
+          } catch {}
+        }
       }
 
       return new Response(JSON.stringify({ error: "Image Not Found", key: cleanKey }), {
@@ -697,7 +767,9 @@ export default {
                 .bind(
                   id,
                   updatedProduct.name || "Untitled Product",
-                  Number(updatedProduct.price) || 0,
+                  typeof updatedProduct.price === "number"
+                    ? updatedProduct.price
+                    : parseFloat(String(updatedProduct.price || "").replace(/[^0-9.]/g, "")) || 0,
                   updatedProduct.category || "General",
                   updatedProduct.inStock !== false ? 1 : 0,
                   updatedProduct.image || "",

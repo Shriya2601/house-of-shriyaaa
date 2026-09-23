@@ -23,6 +23,7 @@ export interface AdminUploadResponse {
   contentType?: string;
   storageType?: string;
   error?: string;
+  dataUrl?: string;
 }
 
 export const MASTER_ADMIN_TOKEN = "houseofshriya_admin_secure_session";
@@ -62,6 +63,24 @@ export function setIndexedDbImage(key: string, dataUrl: string): void {
       tx.objectStore(IDB_STORE).put(dataUrl, key);
     } catch {}
   }).catch(() => {});
+}
+
+export function getIndexedDbImage(key: string): Promise<string | null> {
+  if (!key) return Promise.resolve(null);
+  return openImageIdb().then((db) => {
+    if (!db) return null;
+    return new Promise<string | null>((resolve) => {
+      try {
+        const tx = db.transaction(IDB_STORE, "readonly");
+        const store = tx.objectStore(IDB_STORE);
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result ? String(req.result) : null);
+        req.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
+    });
+  }).catch(() => null);
 }
 
 // Preload cached images from IndexedDB into memory on startup
@@ -108,6 +127,16 @@ function getAllKeysForUrl(url: string): string[] {
   const baseName = clean.split("/").pop() || "";
   if (baseName) {
     keys.add(baseName);
+    keys.add(`/uploads/${baseName}`);
+    keys.add(`uploads/${baseName}`);
+    keys.add(`/api/images/${baseName}`);
+    keys.add(`api/images/${baseName}`);
+    keys.add(`/uploads/banners/${baseName}`);
+    keys.add(`uploads/banners/${baseName}`);
+    keys.add(`/uploads/products/${baseName}`);
+    keys.add(`uploads/products/${baseName}`);
+    keys.add(`/api/images/banners/${baseName}`);
+    keys.add(`/api/images/products/${baseName}`);
   }
 
   // Leading slash variations
@@ -629,18 +658,27 @@ export async function uploadImageToAdminStorage(
 
       if (isJsonOk) {
         const result: AdminUploadResponse = await response.json();
-        if (result.success && result.url) {
+        if (result.success && (result.url || result.dataUrl)) {
           tracker.logApiResult(uploadEndpoint, response.status, contentType, result);
           onProgress?.(100);
-          let base = result.url.split("?")[0];
+          let rawUrl = result.url || result.dataUrl || "";
+          let base = rawUrl.split("?")[0];
           if (typeof window !== "undefined" && base.startsWith(window.location.origin)) {
             base = base.replace(window.location.origin, "");
           }
-          const finalUrl = base.startsWith("data:") ? base : `${base}?v=${Date.now()}`;
+          // If server only stored in memory, return the high-resolution optimized dataUrl
+          // so the image never 404s on the live site across PoPs or isolate reboots!
+          let finalUrl: string;
+          if (result.storageType === "memory" || base.startsWith("data:")) {
+            finalUrl = result.dataUrl || optimizedDataUrl || base;
+          } else {
+            finalUrl = `${base}?v=${Date.now()}`;
+          }
           registerLocalImageCache(finalUrl, optimizedDataUrl);
           registerLocalImageCache(base, optimizedDataUrl);
-          setIndexedDbImage(finalUrl, optimizedDataUrl);
-          setIndexedDbImage(base, optimizedDataUrl);
+          if (result.url) registerLocalImageCache(result.url, optimizedDataUrl);
+          if (result.filename) registerLocalImageCache(result.filename, optimizedDataUrl);
+          if (result.key) registerLocalImageCache(result.key, optimizedDataUrl);
           tracker.logCacheRegistration([finalUrl, base]);
           tracker.logComplete(finalUrl, "SERVER_API");
           return finalUrl;
@@ -709,19 +747,26 @@ export async function uploadImageToAdminStorage(
 
     if (isFormOk) {
       const result: AdminUploadResponse = await formResponse.json();
-      if (result.success && result.url) {
+      if (result.success && (result.url || result.dataUrl)) {
         tracker.logApiResult(uploadEndpoint, formResponse.status, contentType, result);
         onProgress?.(100);
-        let base = result.url.split("?")[0];
+        let rawUrl = result.url || result.dataUrl || "";
+        let base = rawUrl.split("?")[0];
         if (typeof window !== "undefined" && base.startsWith(window.location.origin)) {
           base = base.replace(window.location.origin, "");
         }
-        const finalUrl = base.startsWith("data:") ? base : `${base}?v=${Date.now()}`;
+        let finalUrl: string;
+        if (result.storageType === "memory" || base.startsWith("data:")) {
+          finalUrl = result.dataUrl || optimizedDataUrl || base;
+        } else {
+          finalUrl = `${base}?v=${Date.now()}`;
+        }
         if (optimizedDataUrl) {
           registerLocalImageCache(finalUrl, optimizedDataUrl);
           registerLocalImageCache(base, optimizedDataUrl);
-          setIndexedDbImage(finalUrl, optimizedDataUrl);
-          setIndexedDbImage(base, optimizedDataUrl);
+          if (result.url) registerLocalImageCache(result.url, optimizedDataUrl);
+          if (result.filename) registerLocalImageCache(result.filename, optimizedDataUrl);
+          if (result.key) registerLocalImageCache(result.key, optimizedDataUrl);
         }
         tracker.logCacheRegistration([finalUrl, base]);
         tracker.logComplete(finalUrl, "SERVER_API");
@@ -760,16 +805,25 @@ export async function uploadImageToAdminStorage(
       const altContentType = altResponse?.headers?.get("content-type") || "";
       if (altResponse && altResponse.ok && !altContentType.includes("text/html")) {
         const result: AdminUploadResponse = await altResponse.json();
-        if (result.success && result.url) {
+        if (result.success && (result.url || result.dataUrl)) {
           tracker.logApiResult(altEndpoint, altResponse.status, altContentType, result);
           onProgress?.(100);
-          let base = result.url.split("?")[0];
+          let rawUrl = result.url || result.dataUrl || "";
+          let base = rawUrl.split("?")[0];
           if (typeof window !== "undefined" && base.startsWith(window.location.origin)) {
             base = base.replace(window.location.origin, "");
           }
-          const finalUrl = base.startsWith("data:") ? base : `${base}?v=${Date.now()}`;
+          let finalUrl: string;
+          if (result.storageType === "memory" || base.startsWith("data:")) {
+            finalUrl = result.dataUrl || optimizedDataUrl || base;
+          } else {
+            finalUrl = `${base}?v=${Date.now()}`;
+          }
           registerLocalImageCache(finalUrl, optimizedDataUrl);
           registerLocalImageCache(base, optimizedDataUrl);
+          if (result.url) registerLocalImageCache(result.url, optimizedDataUrl);
+          if (result.filename) registerLocalImageCache(result.filename, optimizedDataUrl);
+          if (result.key) registerLocalImageCache(result.key, optimizedDataUrl);
           tracker.logCacheRegistration([finalUrl, base]);
           tracker.logComplete(finalUrl, "SERVER_API");
           return finalUrl;

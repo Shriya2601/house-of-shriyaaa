@@ -1,0 +1,19 @@
+name = "house-of-shriya"
+compatibility_date = "2024-04-01"
+pages_build_output_dir = "dist/client"
+
+# Cloudflare D1 SQL Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "house-of-shriya"
+database_id = "house-of-shriya-db"
+
+# Cloudflare R2 Storage Bucket Binding
+[[r2_buckets]]
+binding = "IMAGES_BUCKET"
+bucket_name = "house-of-shriya-images"
+
+# Cloudflare KV Key-Value Store Binding
+[[kv_namespaces]]
+binding = "STORE_KV"
+id = "house-of-shriya-kv"

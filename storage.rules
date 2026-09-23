@@ -11,6 +11,7 @@ service firebase.storage {
         request.auth.token.email == 'houseofshriya.in@gmail.com' ||
         request.auth.token.email == 'houseofshriyaa@gmail.com' ||
         request.auth.token.email == 'admin@houseofshriya.in' ||
+        request.auth.token.email == 'pshriya2626@gmail.com' ||
         request.auth.token.email == 'kshriya2626@gmail.com' ||
         request.auth.token.email == 'shriyapusha2001@gmail.com' ||
         request.auth.token.email == 'shriyapusha01@gmail.com' ||

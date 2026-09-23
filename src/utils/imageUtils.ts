@@ -3,8 +3,8 @@
  * Converts external share links (Kommodo, Google Drive, Dropbox) into direct, embeddable image URLs.
  */
 import type React from "react";
-import { getLocalCachedImage, registerLocalImageCache } from "../services/adminUploadService";
-export { getLocalCachedImage, registerLocalImageCache };
+import { getLocalCachedImage, registerLocalImageCache, getIndexedDbImage } from "../services/adminUploadService";
+export { getLocalCachedImage, registerLocalImageCache, getIndexedDbImage };
 
 const KNOWN_KOMMODO_MAP: Record<string, string> = {
   "eA9kgNNZCuEDbWDBS8JI": "https://plain-apac-prod-public.komododecks.com/202609/05/eA9kgNNZCuEDbWDBS8JI/image.jpg",
@@ -77,45 +77,60 @@ export function handleImageError(
   const target = e.currentTarget;
   if (!target) return;
 
-  // 1. Check if we have an immediate local/session/IndexedDB cached dataUrl for this uploaded image
-  const cached = getLocalCachedImage(target.src);
-  if (cached && target.src !== cached) {
+  const currentSrc = target.src || "";
+  const cleanSrc = currentSrc.split("?")[0];
+  const filename = cleanSrc.split("/").pop() || "";
+
+  // 1. Check if we have an immediate local/session cached dataUrl for this uploaded image
+  const cached = getLocalCachedImage(currentSrc) || getLocalCachedImage(cleanSrc) || (filename ? getLocalCachedImage(filename) : null);
+  if (cached && currentSrc !== cached) {
     target.src = cached;
     return;
   }
 
-  // 2. If image has ?v= cache-busting timestamp, retry without ?v=
-  if (target.src && target.src.includes("?v=") && !target.dataset.retried) {
+  // 2. Asynchronously check IndexedDB for any cached copy
+  if (filename) {
+    getIndexedDbImage(filename).then((idbVal) => {
+      if (idbVal && target.src !== idbVal) {
+        target.src = idbVal;
+        registerLocalImageCache(filename, idbVal);
+      }
+    }).catch(() => {});
+  }
+
+  // 3. If image has ?v= cache-busting timestamp, retry without ?v=
+  if (currentSrc.includes("?v=") && !target.dataset.retried) {
     target.dataset.retried = "true";
-    const cleanSrc = target.src.split("?")[0];
-    const cachedClean = getLocalCachedImage(cleanSrc);
-    if (cachedClean && target.src !== cachedClean) {
-      target.src = cachedClean;
-      return;
-    }
     target.src = cleanSrc;
     return;
   }
 
-  // 3. Cloudflare R2 / D1 Recovery: If image was an /uploads/ URL that 404s on static CDN, fetch directly from /api/images/
-  if (target.src && (target.src.includes("/uploads/") || target.src.includes("uploads/")) && !target.dataset.apiRetried) {
+  // 4. Cloudflare R2 / D1 / CDN Route Switching:
+  // If /uploads/ 404s, try /api/images/
+  if ((currentSrc.includes("/uploads/") || currentSrc.includes("uploads/")) && !target.dataset.apiRetried) {
     target.dataset.apiRetried = "true";
-    try {
-      const urlObj = new URL(target.src, window.location.href);
-      const pathname = urlObj.pathname;
-      const filename = pathname.split("/").pop() || "";
+    if (filename) {
+      target.src = `/api/images/${filename}`;
+      return;
+    }
+  }
 
-      if (filename) {
-        const cachedByFilename = getLocalCachedImage(filename);
-        if (cachedByFilename) {
-          target.src = cachedByFilename;
-          return;
-        }
-        const apiFallbackUrl = `/api/images/${filename}`;
-        target.src = apiFallbackUrl;
-        return;
-      }
-    } catch {}
+  // If /api/images/ 404s, try /uploads/
+  if (currentSrc.includes("/api/images/") && !target.dataset.uploadsRetried) {
+    target.dataset.uploadsRetried = "true";
+    if (filename) {
+      target.src = `/uploads/${filename}`;
+      return;
+    }
+  }
+
+  // If banners/ or products/ subpath was used, try direct filename
+  if ((currentSrc.includes("/banners/") || currentSrc.includes("/products/")) && !target.dataset.directRetried) {
+    target.dataset.directRetried = "true";
+    if (filename) {
+      target.src = `/uploads/${filename}`;
+      return;
+    }
   }
 
   if (!target.src.includes("unsplash.com") && target.src !== fallback) {
